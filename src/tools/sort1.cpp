@@ -373,6 +373,7 @@ auto radix_sort_dup(const Frame& frame, const Keys& sort_keys) {
 		break;
 	    }
 	}
+	++idx;
     }
 
     SortIndex index(frame.size()), new_index(frame.size());
