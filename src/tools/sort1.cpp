@@ -324,9 +324,107 @@ auto radix_sort(const Frame& frame, const Keys& sort_keys) {
     return index;
 }
 
+auto radix_sort_dup(const Frame& frame, const Keys& sort_keys) {
+    Keys keys = sort_keys;
+    std::reverse(keys.begin(), keys.end());
+    
+    const auto key_length = total_key_length(keys);
+    RadixIndex buckets[key_length][RadixSize];
+    memset(buckets, 0, key_length * RadixSize * sizeof(RadixIndex));
+
+    std::vector<std::vector<uint8_t>> radix_values(key_length);
+    for (auto i = 0; i < key_length; ++i)
+	radix_values[i].resize(frame.size());
+
+    auto idx = 0;
+    for (auto row : frame) {
+	auto bdx = 0;
+	for (const auto& key : keys) {
+	    auto field = row + key.offset;
+	    switch (key.type) {
+		using enum DataType;
+	    case Unsigned8:
+		radix_values[bdx][idx] = field[0];
+		++buckets[bdx++][1 + field[0]];
+		break;
+	    case Unsigned16:
+		for (auto i = 0; i < 2; ++i) {
+		    radix_values[bdx][idx] = field[i];
+		    ++buckets[bdx++][1 + field[i]];
+		}
+		break;
+	    case Unsigned32:
+		for (auto i = 0; i < 4; ++i) {
+		    radix_values[bdx][idx] = field[i];
+		    ++buckets[bdx++][1 + field[i]];
+		}
+		break;
+	    case Unsigned64:
+		for (auto i = 0; i < 8; ++i) {
+		    radix_values[bdx][idx] = field[i];
+		    ++buckets[bdx++][1 + field[i]];
+		}
+		break;
+	    case Signed64:
+		for (auto i = 0; i < 8; ++i) {
+		    radix_values[bdx][idx] = field[i];
+		    ++buckets[bdx++][1 + field[i]];
+		}
+		break;
+	    }
+	}
+    }
+
+    SortIndex index(frame.size()), new_index(frame.size());
+    for (auto i = 0; i < frame.size(); ++i)
+	index[i] = i;
+
+    auto bdx = 0;
+    for (const auto& key : keys) {
+	switch (key.type) {
+	    using enum DataType;
+	case Unsigned8:
+	case Unsigned16:
+	case Unsigned32:
+	case Unsigned64:
+	    for (auto i = 0; i < key.length(); ++i) {
+		auto *counts = buckets[bdx++];
+		for (auto j = 1; j < 257; ++j)
+		    counts[j] += counts[j - 1];
+		auto *values = radix_values[i].data();
+		for (auto j = 0; j < frame.size(); ++j) {
+		    auto value = values[index[j]];
+		    auto& loc = counts[value];
+		    new_index[loc] = index[j];
+		    ++loc;
+		}
+		std::swap(index, new_index);
+	    }
+	    break;
+	case Signed64:
+	    for (auto i = 0; i < key.length(); ++i) {
+		auto *counts = buckets[bdx++];
+		for (auto j = 1; j < 257; ++j)
+		    counts[j] += counts[j - 1];
+		auto *values = radix_values[i].data();
+		for (auto j = 0; j < frame.size(); ++j) {
+		    auto value = values[index[j]];
+		    auto& loc = counts[value];
+		    new_index[loc] = index[j];
+		    ++loc;
+		}
+		std::swap(index, new_index);
+	    }
+	    break;
+	}
+    }
+
+    return index;
+}
+
 bool check_sort(const std::vector<ElementType*>& ptrs, const Keys& sort_keys) {
     for (auto i = 1; i < ptrs.size(); ++i)
-	if (not compare(ptrs[i-1], ptrs[i], sort_keys))
+	if (not compare(ptrs[i-1], ptrs[i], sort_keys) and compare(ptrs[i], ptrs[i-1], sort_keys))
 	    return false;
     return true;
 }
@@ -336,7 +434,10 @@ bool check_sort(const Frame& frame, const SortIndex& index, const Keys& sort_key
     for (auto i = 1; i < index.size(); ++i)
 	if (not compare(ptr + index[i-1] * frame.row_size(),
 			ptr + index[i] * frame.row_size(),
-			sort_keys))
+			sort_keys) and
+	    compare(ptr + index[i] * frame.row_size(),
+		    ptr + index[i-1] * frame.row_size(),
+		    sort_keys))
 	    return false;
     return true;
 }
@@ -344,7 +445,7 @@ bool check_sort(const Frame& frame, const SortIndex& index, const Keys& sort_key
 bool check_sort(const Frame& frame, const Keys& sort_keys) {
     auto ptr = reinterpret_cast<uint64_t*>(frame.data());
     for (auto i = 1; i < frame.size(); ++i)
-	if (not (ptr[i-1] < ptr[i]))
+	if (not (ptr[i-1] < ptr[i]) and ptr[i] < ptr[i-1])
 	    return false;
     return true;
 }
@@ -418,6 +519,16 @@ int tool_main(int argc, const char *argv[]) {
     
     if (not check_sort(frame, radix_index, sort_keys))
 	throw core::runtime_error("radix sort failed");
+
+    timer.mark();
+    auto radix_dup_index = radix_sort_dup(frame, sort_keys);
+    if (verbose) {
+	auto millis = timer.elapsed_duration<std::chrono::milliseconds>().count();
+	cout << fmt::format("radix dup sort: {}ms", millis) << endl;
+    }
+    
+    if (not check_sort(frame, radix_dup_index, sort_keys))
+	throw core::runtime_error("radix dup sort failed");
 
     if (frame.row_size() == 8 and sort_keys.size() == 1) {
 	timer.mark();
