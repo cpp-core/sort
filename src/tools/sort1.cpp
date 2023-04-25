@@ -10,6 +10,22 @@
 
 using SortIndex = std::vector<int>;
 
+void bitonic_sort(std::uint64_t *data, size_t n) {
+    for (auto k = 2; k <= n; k *= 2) {
+	for (auto j = k/2; j > 0; j /= 2) {
+	    for (auto i = 0; i < n; ++i) {
+		auto l = i xor j;
+		if (l > i) {
+		    bool mask = i bitand k;
+		    if ((not mask and (data[i] > data[l])) or
+			(mask and (data[i] < data[l])))
+			std::swap(data[i], data[l]);
+		}
+	    }
+	}
+    }
+}
+
 auto pointer_sort(Frame& frame, const Keys& sort_keys) {
     std::vector<const ElementType*> ptrs;
     for (auto ptr : frame)
@@ -230,28 +246,38 @@ auto radix_sort_dup(Frame& frame, const Keys& sort_keys) {
     return index;
 }
 
-// void merge_buttom_up_sort(Frame& frame, const Keys& keys) {
-//     int n = frame.nrows();
-//     std::vector<uint8_t> buffer(n * frame.bytes_per_row());
-
-//     for (auto w = 1; w < n; w *= 2) {
-// 	for (auto i = 0; i < n; i += 2 * w) {
-// 	    auto max_ldx = i + w, max_rdx = std::min(i + 2 * w, n);
-// 	    auto ldx = i, rdx = i + 1, mdx = i;
-// 	    while (ldx < max_ldx and rdx < max_rdx) {
-// 		if (a[ldx] < a[rdx])
-// 		    b[mdx++] = a[ldx++];
-// 		else if (a[rdx] < a[ldx])
-// 		    b[mdx++] = a[rdx++];
-// 	    }
-// 	    while (ldx < max_ldx)
-// 		b[mdx++] = a[ldx++];
-// 	    while (rdx < max_rdx)
-// 		b[mdx++] = a[rdx++];
-// 	}
-// 	std::swap(frame, buffer);
-//     }
-// }
+void merge_bottom_up_sort(Frame& frame, const Keys& keys) {
+    Frame buffer = frame;
+    int n = frame.nrows();
+    for (auto w = 1; w < n; w *= 2) {
+	for (auto i = 0, mdx = 0; i < n; i += 2 * w) {
+	    auto lptr = frame.row(i), rptr = frame.row(i + w);
+	    auto elptr = frame.row(std::min(i + w, n)), erptr = frame.row(std::min(i + 2 * w, n));
+	    while (lptr < elptr and rptr < erptr) {
+		if (compare(lptr, rptr, keys) or not compare(rptr, lptr, keys)) {
+		    std::copy(lptr, lptr + frame.bytes_per_row(), buffer.row(mdx));
+		    lptr += frame.bytes_per_row();
+		    ++mdx;
+		} else {
+		    std::copy(rptr, rptr + frame.bytes_per_row(), buffer.row(mdx));
+		    rptr += frame.bytes_per_row();
+		    ++mdx;
+		}
+	    }
+	    while (lptr < elptr) {
+		std::copy(lptr, lptr + frame.bytes_per_row(), buffer.row(mdx));
+		lptr += frame.bytes_per_row();
+		++mdx;
+	    }
+	    while (rptr < erptr) {
+		std::copy(rptr, rptr + frame.bytes_per_row(), buffer.row(mdx));
+		rptr += frame.bytes_per_row();
+		++mdx;
+	    }
+	}
+	std::swap(frame, buffer);
+    }
+}
 
 bool check_sort(const std::vector<const ElementType*>& ptrs, const Keys& sort_keys) {
     for (auto i = 1; i < ptrs.size(); ++i)
@@ -350,6 +376,15 @@ int tool_main(int argc, const char *argv[]) {
     
     if (not check_sort(frame, radix_dup_index, sort_keys))
 	throw core::runtime_error("radix dup sort failed");
+
+    Frame tmp_frame = frame;
+    timer.mark();
+    merge_bottom_up_sort(tmp_frame, sort_keys);
+    if (verbose) {
+	auto millis = timer.elapsed_duration<std::chrono::milliseconds>().count();
+	cout << fmt::format("merge bottom up sort: {}ms", millis) << endl;
+    }
+    check_sort(tmp_frame, sort_keys);
 
     if (frame.bytes_per_row() == 8 and sort_keys.size() == 1) {
 	timer.mark();

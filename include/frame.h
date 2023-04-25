@@ -78,7 +78,7 @@ public:
     }
 
     auto row(size_t idx) {
-	return std::span(storage_.data() + idx * bytes_per_row_, bytes_per_row_);
+	return storage_.data() + idx * bytes_per_row_;
     }
 
     auto operator[](size_t idx) const {
