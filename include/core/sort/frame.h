@@ -15,46 +15,6 @@ class Frame {
 public:
     using element_type = ElementType;
     
-    struct iterator {
-	using iterator_category = std::random_access_iterator_tag;
-	using difference_type = std::ptrdiff_t;
-	using value_type = const element_type*;
-	using pointer = value_type*;
-	using reference = value_type&;
-	
-	iterator(value_type ptr, size_t row_size)
-	    : ptr_(ptr)
-	    , row_size_(row_size) {
-	}
-
-	auto operator++() {
-	    ptr_ += row_size_;
-	    return *this;
-	}
-
-	auto operator++(int) {
-	    iterator tmp = *this;
-	    ++(*this);
-	    return tmp;
-	}
-
-	reference operator*() {
-	    return ptr_;
-	}
-
-	pointer operator->() {
-	    return &ptr_;
-	}
-	
-	friend bool operator==(iterator a, iterator b) {
-	    return a.ptr_ == b.ptr_;
-	}
-	
-    private:
-	value_type ptr_;
-	size_t row_size_;
-    };
-
     Frame(size_t number_rows, size_t bytes_per_row)
 	: storage_(number_rows * bytes_per_row)
 	, nrows_(number_rows)
@@ -66,6 +26,13 @@ public:
 
     Frame clone() const {
 	return Frame(*this);
+    }
+
+    Frame order_by(const std::vector<int>& index) const {
+	Frame copy = clone();
+	for (auto i = 0; i < index.size(); ++i)
+	    std::copy(row(index[i]), row(index[i] + 1), copy.row(i));
+	return copy;
     }
 
     auto nrows() const {
@@ -84,11 +51,27 @@ public:
 	return storage_.data();
     }
 
-    auto row(size_t idx) {
+    auto *begin() {
+	return storage_.data();
+    }
+
+    const auto *begin() const {
+	return storage_.data();
+    }
+
+    auto *end() {
+	return storage_.data() + nrows() * bytes_per_row();
+    }
+
+    const auto *end() const {
+	return storage_.data() + nrows() * bytes_per_row();
+    }
+
+    element_type *row(size_t idx) {
 	return storage_.data() + idx * bytes_per_row_;
     }
 
-    auto row(size_t idx) const {
+    const element_type *row(size_t idx) const {
 	return storage_.data() + idx * bytes_per_row_;
     }
 
@@ -102,14 +85,6 @@ public:
 
     auto operator[](size_t idx, size_t jdx) const {
 	return *(data() + idx * bytes_per_row_ + jdx);
-    }
-
-    iterator begin() const {
-	return iterator{storage_.data(), bytes_per_row()};
-    }
-    
-    iterator end() const {
-	return iterator{storage_.data() + nrows() * bytes_per_row(), bytes_per_row()};
     }
 
 private:

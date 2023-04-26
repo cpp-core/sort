@@ -6,46 +6,16 @@
 #include "core/util/tool.h"
 #include "core/chrono/stopwatch.h"
 #include "core/sort/bitonic.h"
-#include "core/sort/merge.h"
-#include "core/sort/quick.h"
-#include "core/sort/radix_index.h"
-#include "core/sort/radix_mem_index.h"
-#include "core/sort/system_pointer.h"
-#include "core/sort/system_index.h"
+#include "core/sort/is_sorted.h"
+#include "core/sort/fixed_sort.h"
+#include "core/sort/merge_sort.h"
+#include "core/sort/quick_sort.h"
+#include "core/sort/radix_sort_index.h"
+#include "core/sort/radix_mem_sort_index.h"
+#include "core/sort/std_sort_index.h"
+#include "core/sort/std_sort_pointer.h"
 
 namespace core::sort {
-
-using SortIndex = std::vector<int>;
-
-bool check_sort(const std::vector<const ElementType*>& ptrs, const Keys& sort_keys) {
-    for (auto i = 1; i < ptrs.size(); ++i)
-	if (not compare(ptrs[i-1], ptrs[i], sort_keys) and compare(ptrs[i], ptrs[i-1], sort_keys))
-	    return false;
-    return true;
-}
-
-bool check_sort(const Frame& frame, const SortIndex& index, const Keys& sort_keys) {
-    auto ptr = *frame.begin();
-    for (auto i = 1; i < index.size(); ++i)
-	if (not compare(ptr + index[i-1] * frame.bytes_per_row(),
-			ptr + index[i] * frame.bytes_per_row(),
-			sort_keys) and
-	    compare(ptr + index[i] * frame.bytes_per_row(),
-		    ptr + index[i-1] * frame.bytes_per_row(),
-		    sort_keys))
-	    return false;
-    return true;
-}
-
-bool check_sort(const Frame& frame, const Keys& sort_keys) {
-    for (auto i = 1; i < frame.nrows(); ++i) {
-	if (not compare(frame.row(i-1), frame.row(i), sort_keys))
-	    return false;
-	if (compare(frame.row(i), frame.row(i-1), sort_keys))
-	    return false;
-    }
-    return true;
-}
 
 template<class Units, class Work, class Check>
 size_t measure_sort_indirect(std::string_view desc, Work&& work, Check&& check) {
@@ -117,46 +87,60 @@ int tool_main(int argc, const char *argv[]) {
     }
 
     measure_sort_indirect<Units>
-	(cout, "system-pointer",
-	 [&]() { return system_pointer(frame, sort_keys); },
-	 [&](const auto& ptrs) { return check_sort(ptrs, sort_keys); });
+	(cout, "std-sort-pointer",
+	 [&]() { return std_sort_pointer(frame, sort_keys); },
+	 [&](const auto& ptrs) { return is_sorted(ptrs, sort_keys); });
     
     measure_sort_indirect<Units>
-	(cout, "system-index",
-	 [&]() { return system_index(frame, sort_keys); },
-	 [&](auto index) { return check_sort(frame, index, sort_keys); });
+	(cout, "std-sort-index",
+	 [&]() { return std_sort_index(frame, sort_keys); },
+	 [&](auto index) { return is_sorted(index, frame, sort_keys); });
 
     measure_sort_indirect<Units>
 	(cout, "radix-index",
 	 [&]() { return radix_index(frame, sort_keys); },
-	 [&](auto index) { return check_sort(frame, index, sort_keys); });
+	 [&](auto index) { return is_sorted(index, frame, sort_keys); });
 
     measure_sort_indirect<Units>
 	(cout, "radix-mem-index",
 	 [&]() { return radix_mem_index(frame, sort_keys); },
-	 [&](auto index) { return check_sort(frame, index, sort_keys); });
+	 [&](auto index) { return is_sorted(index, frame, sort_keys); });
 
     auto frame0 = frame.clone();
     measure_sort<Units>
 	(cout, "merge-bottom-up",
 	 [&]() { merge_bottom_up(frame0, sort_keys); },
-	 [&]() { return check_sort(frame0, sort_keys); });
+	 [&]() { return is_sorted(frame0, sort_keys); });
 
     auto frame1 = frame.clone();
     measure_sort<Units>
 	(cout, "quick-sort",
 	 [&]() { quick_sort(frame1, sort_keys); },
-	 [&]() { return check_sort(frame1, sort_keys); });
+	 [&]() { return is_sorted(frame1, sort_keys); });
     
     // auto frame2 = frame.clone();
     // measure_sort<Units>
     // 	(cout, "insertion-sort",
     // 	 [&]() { insertion_sort(frame2, sort_keys); },
     // 	 [&]() { return check_sort(frame2, sort_keys); });
-    
+
     if (frame.bytes_per_row() == 8
 	and sort_keys.size() == 1
 	and sort_keys[0].type == DataType::Unsigned64) {
+	
+	// auto frame1 = frame.clone();
+	// timer.mark();
+	// stdext::bitsetsort(frame1.row(0), frame1.row(frame1.nrows()),
+	// 		   [](const uint64_t& a, const uint64_t& b) {
+	//     return a < b;
+	// });
+	// if (verbose) {
+	//     auto millis = timer.elapsed_duration<std::chrono::milliseconds>().count();
+	//     cout << fmt::format("bitset-sort: {}ms", millis) << endl;
+	// }
+	// if (not check_sort(frame1, sort_keys))
+	//     throw core::runtime_error("bitset sort failed");
+	
 	timer.mark();
 	auto ptr = reinterpret_cast<uint64_t*>(frame.data());
 	std::sort(ptr, ptr + frame.nrows(), [](const uint64_t& a, const uint64_t& b) {
@@ -164,11 +148,12 @@ int tool_main(int argc, const char *argv[]) {
 	});
 	if (verbose) {
 	    auto millis = timer.elapsed_duration<std::chrono::milliseconds>().count();
-	    cout << fmt::format("vanilla sort: {}ms", millis) << endl;
+	    cout << fmt::format("vanilla-sort: {}ms", millis) << endl;
 	}
-	if (not check_sort(frame, sort_keys))
+	if (not is_sorted(frame, sort_keys))
 	    throw core::runtime_error("vanilla sort failed");
+
     }
-	
+
     return 0;
 }

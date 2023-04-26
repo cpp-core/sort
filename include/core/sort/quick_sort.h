@@ -6,6 +6,7 @@
 #include <fmt/format.h>
 #include "frame.h"
 #include "key.h"
+#include "fixed_sort.h"
 
 namespace core::sort {
 
@@ -44,15 +45,19 @@ int quick_sort_partition(Frame& frame, const Keys& keys, int ldx, int rdx) {
 }
 
 void quick_sort(Frame& frame, const Keys& keys, int ldx, int rdx) {
-    constexpr auto Threshold = 10;
+    // conditional_swap cswap(conditional_swap([&](auto x, auto y) {
+    // 	return compare(x, y, keys); }));
+    constexpr auto Threshold = 8;
     if (ldx >= 0 and rdx >= 0 and ldx < rdx) {
 	auto pdx = quick_sort_partition(frame, keys, ldx, rdx);
 	
-	if (pdx - ldx > Threshold) quick_sort(frame, keys, ldx, pdx);
+	if (1 + pdx - ldx > Threshold) quick_sort(frame, keys, ldx, pdx);
 	else insertion_sort(frame, keys, ldx, pdx);
+	// else fixed_sortUpTo8(frame.row(ldx), 1 + pdx - ldx, frame.bytes_per_row(), cswap);
 	
 	if (rdx - pdx > Threshold) quick_sort(frame, keys, pdx + 1, rdx);
 	else insertion_sort(frame, keys, pdx + 1, rdx);
+	// else fixed_sortUpTo8(frame.row(pdx + 1), rdx - pdx, frame.bytes_per_row(), cswap);
     }
 }
    
