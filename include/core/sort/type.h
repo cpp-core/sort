@@ -4,13 +4,18 @@
 #pragma once
 #include "core/string/lexical_cast.h"
 
+namespace core::sort {
+
 enum class DataType { Signed64, Unsigned8, Unsigned16, Unsigned32, Unsigned64 };
 
+}; // core::sort
+
 namespace core::str::detail {
+using DataType = core::sort::DataType;
 template<>
 struct lexical_cast_impl<DataType> {
     static DataType parse(std::string_view s) {
-	using enum DataType;
+	using enum core::sort::DataType;
 	if (s == "i64") return Signed64;
 	else if (s == "u8") return Unsigned8;
 	else if (s == "u16") return Unsigned16;
@@ -20,6 +25,8 @@ struct lexical_cast_impl<DataType> {
     }
 };
 }; // core::str::detail
+
+namespace core::sort {
 
 std::ostream& operator<<(std::ostream& os, DataType type) {
     switch (type) {
@@ -43,3 +50,4 @@ std::ostream& operator<<(std::ostream& os, DataType type) {
     return os;
 }
 
+}; // core::sort

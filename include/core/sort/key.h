@@ -5,6 +5,8 @@
 #include "core/string/split.h"
 #include "type.h"
 
+namespace core::sort {
+
 struct Key {
     DataType type;
     size_t offset;
@@ -27,7 +29,10 @@ struct Key {
 
 using Keys = std::vector<Key>;
 
+}; // core::sort
+
 namespace core::str::detail {
+using Key = core::sort::Key;
 template<>
 struct lexical_cast_impl<Key> {
     static Key parse(std::string_view s) {
@@ -40,6 +45,8 @@ struct lexical_cast_impl<Key> {
     }
 };
 }; // core::str
+
+namespace core::sort {
 
 std::ostream& operator<<(std::ostream& os, const Key& key) {
     os << key.type << ":" << (8 * key.length());
@@ -107,3 +114,12 @@ bool compare(const T *a_ptr, const T *b_ptr, const Keys& sort_keys) {
     }
     return false;
 }
+
+size_t total_key_length(const Keys& keys) {
+    size_t n{};
+    for (const auto& key : keys)
+	n += key.length();
+    return n;
+}
+
+}; // core::sort
