@@ -279,6 +279,38 @@ void merge_bottom_up_sort(Frame& frame, const Keys& keys) {
     }
 }
 
+int quick_sort_partition(Frame& frame, const Keys& keys, int ldx, int rdx) {
+    auto pdx = ldx + (rdx - ldx) / 2;
+    auto pdx_ptr = frame.row(pdx);
+    --ldx;
+    ++rdx;
+
+    while (true) {
+	do ++ldx;
+	while (compare(frame.row(ldx), pdx_ptr, keys));
+	
+	do --rdx;
+	while (compare(pdx_ptr, frame.row(rdx), keys));
+
+	if (ldx >= rdx)
+	    return rdx;
+
+	std::swap_ranges(frame.row(ldx), frame.row(ldx) + frame.bytes_per_row(), frame.row(rdx));
+    }
+}
+
+void quick_sort(Frame& frame, const Keys& keys, int ldx, int rdx) {
+    if (ldx >= 0 and rdx >= 0 and ldx < rdx) {
+	auto pdx = quick_sort_partition(frame, keys, ldx, rdx);
+	quick_sort(frame, keys, ldx, pdx);
+	quick_sort(frame, keys, pdx + 1, rdx);
+    }
+}
+   
+void quick_sort(Frame& frame, const Keys& keys) {
+    quick_sort(frame, keys, 0, frame.nrows() - 1);
+}
+
 bool check_sort(const std::vector<const ElementType*>& ptrs, const Keys& sort_keys) {
     for (auto i = 1; i < ptrs.size(); ++i)
 	if (not compare(ptrs[i-1], ptrs[i], sort_keys) and compare(ptrs[i], ptrs[i-1], sort_keys))
@@ -371,20 +403,29 @@ int tool_main(int argc, const char *argv[]) {
     auto radix_dup_index = radix_sort_dup(frame, sort_keys);
     if (verbose) {
 	auto millis = timer.elapsed_duration<std::chrono::milliseconds>().count();
-	cout << fmt::format("radix dup sort: {}ms", millis) << endl;
+	cout << fmt::format("radix-dup sort: {}ms", millis) << endl;
     }
     
     if (not check_sort(frame, radix_dup_index, sort_keys))
 	throw core::runtime_error("radix dup sort failed");
 
-    Frame tmp_frame = frame;
+    Frame tmp_frame0 = frame;
     timer.mark();
-    merge_bottom_up_sort(tmp_frame, sort_keys);
+    merge_bottom_up_sort(tmp_frame0, sort_keys);
     if (verbose) {
 	auto millis = timer.elapsed_duration<std::chrono::milliseconds>().count();
-	cout << fmt::format("merge bottom up sort: {}ms", millis) << endl;
+	cout << fmt::format("merge-bottom-up sort: {}ms", millis) << endl;
     }
-    check_sort(tmp_frame, sort_keys);
+    check_sort(tmp_frame0, sort_keys);
+
+    Frame tmp_frame1 = frame;
+    timer.mark();
+    quick_sort(tmp_frame1, sort_keys);
+    if (verbose) {
+	auto millis = timer.elapsed_duration<std::chrono::milliseconds>().count();
+	cout << fmt::format("quick sort: {}ms", millis) << endl;
+    }
+    check_sort(tmp_frame1, sort_keys);
 
     if (frame.bytes_per_row() == 8 and sort_keys.size() == 1) {
 	timer.mark();
