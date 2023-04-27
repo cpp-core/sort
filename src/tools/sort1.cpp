@@ -16,6 +16,12 @@
 #include "core/sort/std_sort_index.h"
 #include "core/sort/std_sort_pointer.h"
 
+#if defined(__APPLE__) && defined(__MACH__)
+#define MACOSX 1
+#else
+#define MACOSX
+#endif
+
 namespace core::sort {
 
 template<class Units, class Work, class Check>
@@ -130,11 +136,17 @@ int tool_main(int argc, const char *argv[]) {
 	(cout, "qsort_r",
 	 [&]() {
 	     qsort_r(frame3.begin(), frame3.nrows(), frame3.bytes_per_row(),
-		     (void*)&sort_keys, 
+#ifdef MACOSX
+		     (void*)&sort_keys,
+#endif
 		     [](void *ctx, const void *a, const void *b) -> int {
 			 auto *keys = reinterpret_cast<Keys*>(ctx);
 			 return compare(a, b, *keys) ? -1 : compare(b, a, *keys);
-		     });
+		     }
+#ifndef MACOSX
+		     ,(void*)&sort_keys
+#endif
+		     );
 	 },
 	 [&]() { return is_sorted(frame3, sort_keys); });
 
