@@ -20,9 +20,9 @@ effectivley random rows from the dataset. This more than offsets any
 benefits.
 
 Another option is to use iterators that also implement
-`std::swap`. This is insufficient for `std::sort` as it uses insertion
-sort at the leaves which requires dynamic memory allocation for
-dynamic record sizes.
+`std::swap`. This is insufficient for `std::sort`, though, as it uses
+insertion sort at the leaves which requires dynamic memory allocation
+for dynamic record sizes.
 
 Based on this understanding, I implemented the following sort algorithms for comparison:
 
@@ -70,18 +70,79 @@ Construct an index vector that references the rows of the dataset
 and invoke `std::sort` on the index vector with a custom comparison
 lambda.
 
-# Radix sort
+# Custom radix sort
 
 The basic radix sort algorithm is conceptually straight forward and I
 implemented a simple version that allows for runtime record lengths
 and comparison functions.
 
-I measure the performance across three different architectures (all
-hardward has plentiful memory relative to the dataset size).
+I measured the performance across three different architectures (all
+hardward has plentiful main memory relative to the dataset size).
 
-1. Apple M1 Max
-2. Intel Zeon
-3. AMD Ryen
+1. Apple M1 Max 128Gb
+2. Intel Zeon E5-2698 256Gb
+3. AMD 7601 32Gb
 
-There was a suprising amount of variation in performance among the
- different algorithms across hardware platforms. In particular, the radix methods showed extreme promis on the arm64, but 
+There was a suprising amount of variation in relative performance
+among the different algorithms across hardware platforms. In
+particular, one of the radix methods showed extreme promise on the
+arm64 and Intel, but was the worst performer on AMD.
+
+Here are some typical runs for benchmark case 1:
+
+# M1
+
+$ make sort1 && sort1 -n 10000000 -r 8 u64:0
+                   std::sort-direct:   637 ms
+  std::sort-direct-compare-function:  1290 ms
+                     qsort_r-direct:  1859 ms
+                         quick-sort:  1560 ms
+                   quick-block-sort:  1596 ms
+                  std::sort-pointer:  1879 ms
+                    std::sort-index:  1956 ms
+                   radix-index-sort:   615 ms
+               radix-mem-index-sort:   415 ms
+               merge-bottom-up-sort:  2031 ms
+
+# Intel
+
+$ make sort1 && sort1 -n 10000000 -r 8 u64:0
+                   std::sort-direct:   966 ms
+  std::sort-direct-compare-function:  2481 ms
+                     qsort_r-direct:  3705 ms
+                         quick-sort:  3122 ms
+                   quick-block-sort:  3416 ms
+                  std::sort-pointer:  3863 ms
+                    std::sort-index:  4068 ms
+                   radix-index-sort:  5151 ms
+               radix-mem-index-sort:  1797 ms
+               merge-bottom-up-sort:  3869 ms
+
+# AMD
+
+$ make sort1 && sort1 -n 10000000 -r 8 u64:0
+                   std::sort-direct:  1121 ms
+  std::sort-direct-compare-function:  2461 ms
+                     qsort_r-direct:  3718 ms
+                         quick-sort:  3333 ms
+                   quick-block-sort:  3752 ms
+                  std::sort-pointer:  7712 ms
+                    std::sort-index:  7141 ms
+                   radix-index-sort: 13216 ms
+               radix-mem-index-sort: 11665 ms
+               merge-bottom-up-sort:  4497 ms
+
+
+If we take `std::sort-direct-compare-function` as a baseline, the
+custom `quicksort` implementation and the `qsort_r` C library function
+are the most consistent performers. The following tables shows the
+running time relative to baseline.
+
+            M1   Intel AMD
+`quicksort` 1.21 1.26  1.35
+`qsort_r`   1.44 1.49  1.51
+`radix-mem` 0.32 0.72  4.74
+
+As with any optimization strategy, the actually data and specific
+hardware will be important parameters.
+
