@@ -138,12 +138,16 @@ int tool_main(int argc, const char *argv[]) {
 	     qsort_r(frame3.begin(), frame3.nrows(), frame3.bytes_per_row(),
 #ifdef MACOSX
 		     (void*)&sort_keys,
-#endif
 		     [](void *ctx, const void *a, const void *b) -> int {
 			 auto *keys = reinterpret_cast<Keys*>(ctx);
 			 return compare(a, b, *keys) ? -1 : compare(b, a, *keys);
 		     }
+#endif
 #ifndef MACOSX
+		     [](const void *a, const void *b, void *ctx) -> int {
+			 auto *keys = reinterpret_cast<Keys*>(ctx);
+			 return compare(a, b, *keys) ? -1 : compare(b, a, *keys);
+		     }
 		     ,(void*)&sort_keys
 #endif
 		     );
