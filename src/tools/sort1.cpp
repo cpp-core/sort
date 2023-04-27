@@ -18,8 +18,6 @@
 
 #if defined(__APPLE__) && defined(__MACH__)
 #define MACOSX 1
-#else
-#define MACOSX
 #endif
 
 namespace core::sort {
