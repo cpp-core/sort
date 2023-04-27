@@ -35,7 +35,7 @@ template<class Units, class Work, class Check>
 void measure_sort_indirect(std::ostream& os, std::string_view desc, Work&& work, Check&& check) {
     auto n = measure_sort_indirect<Units>
 	(desc, std::forward<Work>(work), std::forward<Check>(check));
-    os << fmt::format("{}: {}ms", desc, n) << endl;
+    os << fmt::format("{:>35.35s}: {:5d} ms", desc, n) << endl;
 }
 
 template<class Units, class Work, class Check>
@@ -50,7 +50,7 @@ size_t measure_sort(std::string_view desc, Work&& work, Check&& check) {
 template<class Units, class Work, class Check>
 void measure_sort(std::ostream& os, std::string_view desc, Work&& work, Check&& check) {
     auto n = measure_sort<Units>(desc, std::forward<Work>(work), std::forward<Check>(check));
-    os << fmt::format("{}: {}ms", desc, n) << endl;
+    os << fmt::format("{:>35.35s}: {:5d} ms", desc, n) << endl;
 }
 
 }; // core::sort
@@ -86,6 +86,10 @@ int tool_main(int argc, const char *argv[]) {
 			    number_rows, bytes_per_row)
 	     << endl;
 
+    bool direct_std_sort = bytes_per_row == 8
+	and sort_keys.size() == 1
+	and sort_keys[0].type == DataType::Unsigned64;
+
     using Units = std::chrono::milliseconds;
     
     chron::StopWatch timer;
@@ -95,47 +99,50 @@ int tool_main(int argc, const char *argv[]) {
 	cout << fmt::format("dataset created: {}ms", millis) << endl;
     }
 
-    measure_sort_indirect<Units>
-	(cout, "std-sort-pointer",
-	 [&]() { return std_sort_pointer(frame, sort_keys); },
-	 [&](const auto& ptrs) { return is_sorted(ptrs, sort_keys); });
-    
-    measure_sort_indirect<Units>
-	(cout, "std-sort-index",
-	 [&]() { return std_sort_index(frame, sort_keys); },
-	 [&](auto index) { return is_sorted(index, frame, sort_keys); });
+    // As a special case, if a record is simply a single uint64_t,
+    // directly invoke std::sort passing pointers to the data and a
+    // lambda for the direct comparison of the uint64_t values. This
+    // represents the best possible performance. In the general case,
+    // we will not know the record length or key type at compile time
+    // so this method is simply a benchmark for comparison.
+    if (direct_std_sort) {
+	auto frame1 = frame.clone();
+	auto ptr = reinterpret_cast<uint64_t*>(frame1.data());
+	measure_sort<std::chrono::milliseconds>
+	    (cout, "std::sort-direct",
+	     [&]() {
+		 std::sort(ptr, ptr + frame.nrows(), [](const uint64_t& a, const uint64_t& b) {
+		     return a < b;
+		 });
+	     },
+	     [&]() { return is_sorted(frame1, sort_keys); });
+    }
 
-    measure_sort_indirect<Units>
-	(cout, "radix-index",
-	 [&]() { return radix_index(frame, sort_keys); },
-	 [&](auto index) { return is_sorted(index, frame, sort_keys); });
+    // Similar to the first case above, but using the generic
+    // comparison function instead of assumming a compile-time known
+    // key type. This represents a more realistic upper limit on
+    // expected performance since in general the key will not be known
+    // at compile time. In the general case, we will not know the
+    // record length at compile time, so again this mehtod is simply
+    // another benchmark fo comparision.
+    if (direct_std_sort) {
+	auto frame1 = frame.clone();
+	auto ptr = reinterpret_cast<uint64_t*>(frame1.data());
+	measure_sort<std::chrono::milliseconds>
+	    (cout, "std::sort-direct-compare-function",
+	     [&]() {
+		 std::sort(ptr, ptr + frame.nrows(), [&](const uint64_t& a, const uint64_t& b) {
+		     return compare((const uint8_t*)&a, (const uint8_t*)&b, sort_keys);
+		 });
+	     },
+	     [&]() { return is_sorted(frame1, sort_keys); });
+    }
 
-    measure_sort_indirect<Units>
-	(cout, "radix-mem-index",
-	 [&]() { return radix_mem_index(frame, sort_keys); },
-	 [&](auto index) { return is_sorted(index, frame, sort_keys); });
-
-    auto frame0 = frame.clone();
-    measure_sort<Units>
-	(cout, "merge-bottom-up",
-	 [&]() { merge_bottom_up(frame0, sort_keys); },
-	 [&]() { return is_sorted(frame0, sort_keys); });
-
-    auto frame1 = frame.clone();
-    measure_sort<Units>
-	(cout, "quick-sort",
-	 [&]() { quick_sort(frame1, sort_keys); },
-	 [&]() { return is_sorted(frame1, sort_keys); });
-    
-    auto frame2 = frame.clone();
-    measure_sort<Units>
-	(cout, "quick-block-sort",
-	 [&]() { quick_block_sort(frame2, sort_keys); },
-	 [&]() { return is_sorted(frame2, sort_keys); });
-
+    // Use the C library function `qsort_r` and the generic comparison
+    // function to directly sort the records. This is a practible method.
     auto frame3 = frame.clone();
     measure_sort<Units>
-	(cout, "qsort_r",
+	(cout, "qsort_r-direct",
 	 [&]() {
 	     qsort_r(frame3.begin(), frame3.nrows(), frame3.bytes_per_row(),
 #ifdef MACOSX
@@ -156,38 +163,47 @@ int tool_main(int argc, const char *argv[]) {
 	 },
 	 [&]() { return is_sorted(frame3, sort_keys); });
 
-    if (frame.bytes_per_row() == 8
-	and sort_keys.size() == 1
-	and sort_keys[0].type == DataType::Unsigned64) {
+    // Use std::sort and the generic comparison function to sort a
+    // vector of pointers that refers to the actual records.
+    measure_sort_indirect<Units>
+	(cout, "std::sort-pointer",
+	 [&]() { return std_sort_pointer(frame, sort_keys); },
+	 [&](const auto& ptrs) { return is_sorted(ptrs, sort_keys); });
 
-	auto fptr = &compare_func;
+    // Use std::sort and the generic comparison function to sort an
+    // index vector that refers to the actual records.
+    measure_sort_indirect<Units>
+	(cout, "std::sort-index",
+	 [&]() { return std_sort_index(frame, sort_keys); },
+	 [&](auto index) { return is_sorted(index, frame, sort_keys); });
 
-	auto frame1 = frame.clone();
-	auto ptr1 = reinterpret_cast<uint64_t*>(frame1.data());
-	timer.mark();
-	std::sort(ptr1, ptr1 + frame.nrows(), [&](const uint64_t& a, const uint64_t& b) {
-	    return fptr((const uint8_t*)&a, (const uint8_t*)&b, sort_keys);
-	});
-	if (verbose) {
-	    auto millis = timer.elapsed_duration<std::chrono::milliseconds>().count();
-	    cout << fmt::format("std::sort-function-ptr sort: {}ms", millis) << endl;
-	}
-	if (not is_sorted(frame1, sort_keys))
-	    throw core::runtime_error("std::sort-function-ptr sort failed");
-	
-	timer.mark();
-	auto ptr = reinterpret_cast<uint64_t*>(frame.data());
-	std::sort(ptr, ptr + frame.nrows(), [](const uint64_t& a, const uint64_t& b) {
-	    return a < b;
-	});
-	if (verbose) {
-	    auto millis = timer.elapsed_duration<std::chrono::milliseconds>().count();
-	    cout << fmt::format("vanilla-sort: {}ms", millis) << endl;
-	}
-	if (not is_sorted(frame, sort_keys))
-	    throw core::runtime_error("vanilla sort failed");
+    measure_sort_indirect<Units>
+	(cout, "radix-index-sort",
+	 [&]() { return radix_index(frame, sort_keys); },
+	 [&](auto index) { return is_sorted(index, frame, sort_keys); });
 
-    }
+    measure_sort_indirect<Units>
+	(cout, "radix-mem-index-sort",
+	 [&]() { return radix_mem_index(frame, sort_keys); },
+	 [&](auto index) { return is_sorted(index, frame, sort_keys); });
+
+    auto frame0 = frame.clone();
+    measure_sort<Units>
+	(cout, "merge-bottom-up-sort",
+	 [&]() { merge_bottom_up(frame0, sort_keys); },
+	 [&]() { return is_sorted(frame0, sort_keys); });
+
+    auto frame1 = frame.clone();
+    measure_sort<Units>
+	(cout, "quick-sort",
+	 [&]() { quick_sort(frame1, sort_keys); },
+	 [&]() { return is_sorted(frame1, sort_keys); });
+    
+    auto frame2 = frame.clone();
+    measure_sort<Units>
+	(cout, "quick-block-sort",
+	 [&]() { quick_block_sort(frame2, sort_keys); },
+	 [&]() { return is_sorted(frame2, sort_keys); });
 
     return 0;
 }
