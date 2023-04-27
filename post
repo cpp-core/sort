@@ -1,0 +1,87 @@
+I built some tools to measure the performance of different sort
+algorithms using synthetically generated datasets. The code and build
+instructions are available in the GitHub repo core-cpp/sort. https://github.com/cpp-core/sort
+
+Based on OP's problem description, I used the following three datasets
+each with 10M rows as benchmarks:
+
+1. 1 column of `uint64_t`'s with a single sort key on the column.
+2. 32 columns of `uint64_t`'s with a single sort key on the first column.
+3. 32 columns of `uint64_t`'s with a sort key consisting of the first 8 columns.
+
+While `std::sort` uses a highly optimized version of quicksort that is
+almost branchless, there is not an obvious way to invoke it to
+directly sort records whose length is not know at compile time.
+
+One option is to use indirection with either pointers or an index and
+not actually sort the data itself. For large datasets, there is a
+large non-locality penalty because key comparisons require reading
+effectivley random rows from the dataset. This more than offsets any
+benefits.
+
+Another option is to use iterators that also implement
+`std::swap`. This is insufficient for `std::sort` as it uses insertion
+sort at the leaves which requires dynamic memory allocation for
+dynamic record sizes.
+
+Based on this understanding, I implemented the following sort algorithms for comparison:
+
+# `std::sort` for case #1 only
+
+As a special case, if a record is simply a single uint64_t, directly
+invoke std::sort passing pointers to the data and a lambda for the
+direct comparison of the uint64_t values. This represents the best
+possible performance. In the general case, we will not know the record
+length or key type at compile time so this method is simply a
+benchmark for comparison.
+
+# `std::sort` for case #1 only with generic compare
+
+Similar to the first case above, but using the generic comparison
+function instead of assumming a compile-time known key type. This
+represents a more realistic upper limit on expected performance since
+in general the key will not be known at compile time. In the general
+case, we will not know the record length at compile time, so again
+this mehtod is simply another benchmark fo comparision.
+
+# C Library `qsort_r`
+
+The C Library function `qsort_r` provides an interface that allows the
+specication of a record length and a comparison function. This enables
+direct sorting of the records in a staight forward manner. The
+function interface varies between OSX and Linux, so some conditional
+compilation is required.
+
+# Custom quicksort.
+
+The basic quicksort algorithm is conceptually straight forward and I
+implemented a simple version that allows for runtime record lenghts
+and comparison functions.
+
+# `std::sort` with pointers
+
+Construct a vector of pointers that references the rows of the dataset
+and invoke `std::sort` on the pointers with a custom comparison
+lambda.
+
+# `std::sort` with index
+
+Construct an index vector that references the rows of the dataset
+and invoke `std::sort` on the index vector with a custom comparison
+lambda.
+
+# Radix sort
+
+The basic radix sort algorithm is conceptually straight forward and I
+implemented a simple version that allows for runtime record lengths
+and comparison functions.
+
+I measure the performance across three different architectures (all
+hardward has plentiful memory relative to the dataset size).
+
+1. Apple M1 Max
+2. Intel Zeon
+3. AMD Ryen
+
+There was a suprising amount of variation in performance among the
+ different algorithms across hardware platforms. In particular, the radix methods showed extreme promis on the arm64, but 

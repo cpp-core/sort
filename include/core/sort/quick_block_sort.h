@@ -40,7 +40,7 @@ void quick_block_sort(Frame& frame, const Keys& keys, int ldx, int rdx) {
     }));
 
     const auto bpr = frame.bytes_per_row();
-    constexpr auto InsertionThreshold = 16;
+    constexpr auto InsertionThreshold = 32;
     constexpr auto FixedThreshold = 8;
     if (ldx >= 0 and rdx >= 0 and ldx < rdx) {
 	auto pdx = quick_block_sort_partition(frame, keys, ldx, rdx);

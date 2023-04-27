@@ -183,7 +183,6 @@ int tool_main(int argc, const char *argv[]) {
 	 [&]() { return std_sort_pointer(frame, sort_keys); },
 	 [&](const auto& ptrs) { return is_sorted(ptrs, sort_keys); });
 
-    return 0;
     // Use std::sort and the generic comparison function to sort an
     // index vector that refers to the actual records.
     measure_sort_indirect<Units>
