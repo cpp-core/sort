@@ -62,7 +62,10 @@ std::ostream& operator<<(std::ostream& os, const Keys& keys) {
 }
 
 template<class T>
-bool compare(const T *a_ptr, const T *b_ptr, const Keys& sort_keys) {
+bool compare(const T *a_raw_ptr, const T *b_raw_ptr, const Keys& sort_keys) {
+    const auto *a_ptr = reinterpret_cast<const uint8_t*>(a_raw_ptr);
+    const auto *b_ptr = reinterpret_cast<const uint8_t*>(b_raw_ptr);
+    
     for (const auto& key : sort_keys) {
 	switch (key.type) {
 	    using enum DataType;

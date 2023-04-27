@@ -1,14 +1,15 @@
 // Copyright (C) 2022, 2023 by Mark Melton
 //
-
 #include <random>
 #include <span>
+#include <stdlib.h>
 #include "core/util/tool.h"
 #include "core/chrono/stopwatch.h"
 #include "core/sort/bitonic.h"
 #include "core/sort/is_sorted.h"
 #include "core/sort/fixed_sort.h"
 #include "core/sort/merge_sort.h"
+#include "core/sort/quick_block_sort.h"
 #include "core/sort/quick_sort.h"
 #include "core/sort/radix_sort_index.h"
 #include "core/sort/radix_mem_sort_index.h"
@@ -118,11 +119,24 @@ int tool_main(int argc, const char *argv[]) {
 	 [&]() { quick_sort(frame1, sort_keys); },
 	 [&]() { return is_sorted(frame1, sort_keys); });
     
-    // auto frame2 = frame.clone();
-    // measure_sort<Units>
-    // 	(cout, "insertion-sort",
-    // 	 [&]() { insertion_sort(frame2, sort_keys); },
-    // 	 [&]() { return check_sort(frame2, sort_keys); });
+    auto frame2 = frame.clone();
+    measure_sort<Units>
+	(cout, "quick-block-sort",
+	 [&]() { quick_block_sort(frame2, sort_keys); },
+	 [&]() { return is_sorted(frame2, sort_keys); });
+
+    auto frame3 = frame.clone();
+    measure_sort<Units>
+	(cout, "qsort_r",
+	 [&]() {
+	     qsort_r(frame3.begin(), frame3.nrows(), frame3.bytes_per_row(),
+		     (void*)&sort_keys, 
+		     [](void *ctx, const void *a, const void *b) -> int {
+			 auto *keys = reinterpret_cast<Keys*>(ctx);
+			 return compare(a, b, *keys) ? -1 : compare(b, a, *keys);
+		     });
+	 },
+	 [&]() { return is_sorted(frame3, sort_keys); });
 
     if (frame.bytes_per_row() == 8
 	and sort_keys.size() == 1
