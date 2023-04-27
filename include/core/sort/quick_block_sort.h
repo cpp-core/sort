@@ -38,18 +38,22 @@ void quick_block_sort(Frame& frame, const Keys& keys, int ldx, int rdx) {
     conditional_swap cswap(conditional_swap([&](auto x, auto y) {
      	return compare(x, y, keys);
     }));
-    
-    constexpr auto Threshold = 8;
+
+    const auto bpr = frame.bytes_per_row();
+    constexpr auto InsertionThreshold = 16;
+    constexpr auto FixedThreshold = 8;
     if (ldx >= 0 and rdx >= 0 and ldx < rdx) {
 	auto pdx = quick_block_sort_partition(frame, keys, ldx, rdx);
-	
-	if (1 + pdx - ldx > Threshold) quick_block_sort(frame, keys, ldx, pdx);
-	// else insertion_sort(frame, keys, ldx, pdx);
-	else fixed_sortUpTo8(frame.row(ldx), 1 + pdx - ldx, frame.bytes_per_row(), cswap);
-	
-	if (rdx - pdx > Threshold) quick_block_sort(frame, keys, pdx + 1, rdx);
-	// else insertion_sort(frame, keys, pdx + 1, rdx);
-	else fixed_sortUpTo8(frame.row(pdx + 1), rdx - pdx, frame.bytes_per_row(), cswap);
+
+	auto lsize = 1 + pdx - ldx;
+	if (lsize < FixedThreshold) fixed_sortUpTo8(frame.row(ldx), lsize, bpr, cswap);
+	else if (lsize < InsertionThreshold) insertion_sort(frame, keys, ldx, pdx);
+	else quick_block_sort(frame, keys, ldx, pdx);
+
+	auto rsize = rdx - pdx;
+	if (rsize < FixedThreshold) fixed_sortUpTo8(frame.row(pdx + 1), rdx - pdx, bpr, cswap);
+	else if (rsize < InsertionThreshold) insertion_sort(frame, keys, pdx + 1, rdx);
+	else quick_block_sort(frame, keys, pdx + 1, rdx);
     }
 }
    

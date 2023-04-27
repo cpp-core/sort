@@ -164,6 +164,18 @@ int tool_main(int argc, const char *argv[]) {
 	 },
 	 [&]() { return is_sorted(frame3, sort_keys); });
 
+    auto frame1 = frame.clone();
+    measure_sort<Units>
+	(cout, "quick-sort",
+	 [&]() { quick_sort(frame1, sort_keys); },
+	 [&]() { return is_sorted(frame1, sort_keys); });
+    
+    auto frame2 = frame.clone();
+    measure_sort<Units>
+	(cout, "quick-block-sort",
+	 [&]() { quick_block_sort(frame2, sort_keys); },
+	 [&]() { return is_sorted(frame2, sort_keys); });
+
     // Use std::sort and the generic comparison function to sort a
     // vector of pointers that refers to the actual records.
     measure_sort_indirect<Units>
@@ -171,6 +183,7 @@ int tool_main(int argc, const char *argv[]) {
 	 [&]() { return std_sort_pointer(frame, sort_keys); },
 	 [&](const auto& ptrs) { return is_sorted(ptrs, sort_keys); });
 
+    return 0;
     // Use std::sort and the generic comparison function to sort an
     // index vector that refers to the actual records.
     measure_sort_indirect<Units>
@@ -201,18 +214,6 @@ int tool_main(int argc, const char *argv[]) {
 	(cout, "merge-bottom-up-sort",
 	 [&]() { merge_bottom_up(frame0, sort_keys); },
 	 [&]() { return is_sorted(frame0, sort_keys); });
-
-    auto frame1 = frame.clone();
-    measure_sort<Units>
-	(cout, "quick-sort",
-	 [&]() { quick_sort(frame1, sort_keys); },
-	 [&]() { return is_sorted(frame1, sort_keys); });
-    
-    auto frame2 = frame.clone();
-    measure_sort<Units>
-	(cout, "quick-block-sort",
-	 [&]() { quick_block_sort(frame2, sort_keys); },
-	 [&]() { return is_sorted(frame2, sort_keys); });
 
     return 0;
 }
