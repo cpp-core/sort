@@ -13,6 +13,7 @@
 #include "core/sort/quick_sort.h"
 #include "core/sort/radix_sort_index.h"
 #include "core/sort/radix_mem_sort_index.h"
+#include "core/sort/radix_msb_sort.h"
 #include "core/sort/std_sort_index.h"
 #include "core/sort/std_sort_pointer.h"
 
@@ -186,6 +187,14 @@ int tool_main(int argc, const char *argv[]) {
 	(cout, "radix-mem-index-sort",
 	 [&]() { return radix_mem_index(frame, sort_keys); },
 	 [&](auto index) { return is_sorted(index, frame, sort_keys); });
+
+    {
+	auto frame1 = frame.clone();
+	measure_sort<Units>
+	    (cout, "radix-msb-sort",
+	     [&]() { radix_msb_sort(frame1, sort_keys); },
+	     [&]() { return is_sorted(frame1, sort_keys); });
+    }
 
     auto frame0 = frame.clone();
     measure_sort<Units>

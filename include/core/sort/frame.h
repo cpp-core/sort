@@ -15,7 +15,7 @@ class Frame {
 public:
     using element_type = ElementType;
     
-    Frame(size_t number_rows, size_t bytes_per_row)
+    Frame(size_t number_rows, size_t bytes_per_row, bool initialize = true)
 	: storage_(number_rows * bytes_per_row)
 	, nrows_(number_rows)
 	, bytes_per_row_(bytes_per_row) {
@@ -26,6 +26,10 @@ public:
 
     Frame clone() const {
 	return Frame(*this);
+    }
+
+    Frame empty_clone() const {
+	return Frame(nrows_, bytes_per_row_, false);
     }
 
     Frame order_by(const std::vector<int>& index) const {
