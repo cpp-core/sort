@@ -27,7 +27,6 @@ void radix_msb_sort(Frame& frame, const Keys& sort_keys) {
 		case Unsigned32:
 		case Unsigned64:
 		    {
-			assert(key.offset + kdx < frame.bytes_per_row());
 			auto value = frame[i, key.offset + kdx];
 			++buckets[1 + value];
 			raw_key[i] = value;
@@ -49,8 +48,6 @@ void radix_msb_sort(Frame& frame, const Keys& sort_keys) {
 	    for (auto i = 0; i < frame.nrows(); ++i) {
 		auto value = raw_key[i];
 		auto& loc = buckets[value];
-		assert(i < frame.nrows());
-		assert(loc < frame.nrows());
 		std::copy(frame.row(i), frame.row(i+1), buffer.row(loc));
 		++loc;
 	    }
