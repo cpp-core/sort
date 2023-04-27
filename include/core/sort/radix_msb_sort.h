@@ -27,14 +27,14 @@ void radix_msb_sort(Frame& frame, const Keys& sort_keys) {
 		case Unsigned32:
 		case Unsigned64:
 		    {
-			auto value = frame[i, key.offset + kdx];
+			auto value = frame[i, key.offset + key.length() - kdx - 1];
 			++buckets[1 + value];
 			raw_key[i] = value;
 			break;
 		    }
 		case Signed64:
 		    {
-			auto value = frame[i, key.offset + kdx];
+			auto value = frame[i, key.offset + key.length() - kdx - 1];
 			++buckets[1 + value];
 			raw_key[i] = value;
 			break;
