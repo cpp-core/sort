@@ -57,6 +57,10 @@ void measure_sort(std::ostream& os, std::string_view desc, Work&& work, Check&& 
 
 using namespace core::sort;
 
+bool compare_func(const uint8_t *a, const uint8_t *b, const Keys& keys) {
+    return compare(a, b, keys);
+}
+
 int tool_main(int argc, const char *argv[]) {
     ArgParse opts
 	(
@@ -155,19 +159,21 @@ int tool_main(int argc, const char *argv[]) {
     if (frame.bytes_per_row() == 8
 	and sort_keys.size() == 1
 	and sort_keys[0].type == DataType::Unsigned64) {
-	
-	// auto frame1 = frame.clone();
-	// timer.mark();
-	// stdext::bitsetsort(frame1.row(0), frame1.row(frame1.nrows()),
-	// 		   [](const uint64_t& a, const uint64_t& b) {
-	//     return a < b;
-	// });
-	// if (verbose) {
-	//     auto millis = timer.elapsed_duration<std::chrono::milliseconds>().count();
-	//     cout << fmt::format("bitset-sort: {}ms", millis) << endl;
-	// }
-	// if (not check_sort(frame1, sort_keys))
-	//     throw core::runtime_error("bitset sort failed");
+
+	auto fptr = &compare_func;
+
+	auto frame1 = frame.clone();
+	auto ptr1 = reinterpret_cast<uint64_t*>(frame1.data());
+	timer.mark();
+	std::sort(ptr1, ptr1 + frame.nrows(), [&](const uint64_t& a, const uint64_t& b) {
+	    return fptr((const uint8_t*)&a, (const uint8_t*)&b, sort_keys);
+	});
+	if (verbose) {
+	    auto millis = timer.elapsed_duration<std::chrono::milliseconds>().count();
+	    cout << fmt::format("std::sort-function-ptr sort: {}ms", millis) << endl;
+	}
+	if (not is_sorted(frame1, sort_keys))
+	    throw core::runtime_error("std::sort-function-ptr sort failed");
 	
 	timer.mark();
 	auto ptr = reinterpret_cast<uint64_t*>(frame.data());
