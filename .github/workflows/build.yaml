@@ -1,0 +1,36 @@
+
+name: Build
+
+on:
+  push:
+    branches:
+      - 'main'
+    paths-ignore:
+      - '*.md'
+      - 'docs/**'
+  
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Requirements
+      run: sudo apt-get install -y clang-15 libc++-15-dev libc++abi-15-dev
+      
+    - name: Checkout sort
+      uses: actions/checkout@v2
+      with:
+        repository: cpp-core/sort
+        path: mp
+        submodules: recursive
+        
+    - name: Build and run the tests
+      run: |
+        export CC=clang-15
+        export CXX=clang++-15
+        mkdir -p mp/build && pushd mp/build
+        cmake -DCMAKE_INSTALL_PREFIX=${GITHUB_WORKSPACE}/opt ..
+        make sort1
+        popd
