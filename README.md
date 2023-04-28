@@ -1,3 +1,4 @@
+[![Build](https://github.com/cpp-core/sort/actions/workflows/build.yaml/badge.svg)](https://github.com/cpp-core/sort/actions/workflows/build.yaml)
 
 ## Build
 
