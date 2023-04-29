@@ -24,7 +24,6 @@ auto radix_mem_index(Frame& frame, const Keys& sort_keys) {
     for (auto i = 0; i < key_length; ++i)
 	radix_values[i].resize(frame.nrows());
 
-    auto idx = 0;
     for (auto i = 0; i < frame.nrows(); ++i) {
 	auto row = frame.row(i);
 	auto bdx = 0;
@@ -33,36 +32,42 @@ auto radix_mem_index(Frame& frame, const Keys& sort_keys) {
 	    switch (key.type) {
 		using enum DataType;
 	    case Unsigned8:
-		radix_values[bdx][idx] = field[0];
-		++buckets[bdx++][1 + field[0]];
+		radix_values[bdx][i] = field[0];
+		++buckets[bdx][1 + field[0]];
+		++bdx;
 		break;
 	    case Unsigned16:
-		for (auto i = 0; i < 2; ++i) {
-		    radix_values[bdx][idx] = field[i];
-		    ++buckets[bdx++][1 + field[i]];
+		for (auto j = 0; j < 2; ++j, ++bdx) {
+		    radix_values[bdx][i] = field[j];
+		    ++buckets[bdx][1 + field[j]];
 		}
 		break;
 	    case Unsigned32:
-		for (auto i = 0; i < 4; ++i) {
-		    radix_values[bdx][idx] = field[i];
-		    ++buckets[bdx++][1 + field[i]];
+		for (auto j = 0; j < 4; ++j, ++bdx) {
+		    radix_values[bdx][i] = field[j];
+		    ++buckets[bdx][1 + field[j]];
 		}
 		break;
 	    case Unsigned64:
-		for (auto i = 0; i < 8; ++i) {
-		    radix_values[bdx][idx] = field[i];
-		    ++buckets[bdx++][1 + field[i]];
+		for (auto j = 0; j < 8; ++j, ++bdx) {
+		    radix_values[bdx][i] = field[j];
+		    ++buckets[bdx][1 + field[j]];
 		}
 		break;
 	    case Signed64:
-		for (auto i = 0; i < 8; ++i) {
-		    radix_values[bdx][idx] = field[i];
-		    ++buckets[bdx++][1 + field[i]];
+		for (auto j = 0; j < 8; ++j, ++bdx) {
+		    radix_values[bdx][i] = field[j];
+		    ++buckets[bdx][1 + field[j]];
 		}
 		break;
 	    }
 	}
-	++idx;
+    }
+
+    for (auto i = 0; i < key_length; ++i) {
+	auto *counts = buckets[i];
+	for (auto j = 1; j < RadixSize; ++j)
+	    counts[j] += counts[j - 1];
     }
 
     SortIndex index(frame.nrows()), new_index(frame.nrows());
@@ -77,11 +82,9 @@ auto radix_mem_index(Frame& frame, const Keys& sort_keys) {
 	case Unsigned16:
 	case Unsigned32:
 	case Unsigned64:
-	    for (auto i = 0; i < key.length(); ++i) {
-		auto *counts = buckets[bdx++];
-		for (auto j = 1; j < 257; ++j)
-		    counts[j] += counts[j - 1];
-		auto *values = radix_values[i].data();
+	    for (auto i = 0; i < key.length(); ++i, ++bdx) {
+		auto *counts = buckets[bdx];
+		auto *values = radix_values[bdx].data();
 		for (auto j = 0; j < frame.nrows(); ++j) {
 		    auto value = values[index[j]];
 		    auto& loc = counts[value];
@@ -92,11 +95,9 @@ auto radix_mem_index(Frame& frame, const Keys& sort_keys) {
 	    }
 	    break;
 	case Signed64:
-	    for (auto i = 0; i < key.length(); ++i) {
-		auto *counts = buckets[bdx++];
-		for (auto j = 1; j < 257; ++j)
-		    counts[j] += counts[j - 1];
-		auto *values = radix_values[i].data();
+	    for (auto i = 0; i < key.length(); ++i, ++bdx) {
+		auto *counts = buckets[bdx];
+		auto *values = radix_values[bdx].data();
 		for (auto j = 0; j < frame.nrows(); ++j) {
 		    auto value = values[index[j]];
 		    auto& loc = counts[value];
