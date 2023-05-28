@@ -1,70 +1,116 @@
 // Copyright (C) 2022, 2023 by Mark Melton
 //
 
+#undef NDEBUG
+#include <cassert>
+
 #include <algorithm>
 #include <iostream>
 #include <random>
 #include <span>
 
+template<class T>
 struct RecordIterator {
-    using storage_type = uint8_t;
+    using storage_type = T;
     using storage_pointer = storage_type*;
 
     using iterator_category = std::random_access_iterator_tag;
     using difference_type = std::ptrdiff_t;
-    using value_type = storage_pointer;
-    using pointer = storage_pointer;
+    
+    struct value_type;
     
     struct reference {
-	reference(storage_pointer ptr, size_t record_size)
-	    : ptr_(ptr)
-	    , record_size_(record_size) {
+	explicit reference(storage_pointer data, size_t size)
+	    : data_(data)
+	    , size_(size) {
 	}
-	
-	operator uint8_t*() {
-	    return ptr_;
-	}
+
+	reference(const reference& other) = default;
 	
 	auto& operator=(reference other) {
-	    std::copy(other.ptr_, other.ptr_ + record_size_, ptr_);
+	    std::copy(other.data_, other.data_ + size_, data_);
 	    return *this;
 	}
 	
-	auto& operator=(uint8_t *ptr) {
-	    std::copy(ptr, ptr + record_size_, ptr_);
-	    return *this;
-	}
+	reference(value_type&);
+	
+	reference& operator=(const value_type&);
 	
 	friend void swap(reference a, reference b) {
-	    for (auto i = 0; i < a.record_size_; ++i)
-		std::swap(a.ptr_[i], b.ptr_[i]);
+	    assert(a.size() == b.size());
+	    for (auto i = 0; i < a.size(); ++i)
+		std::swap(a.data_[i], b.data_[i]);
+	}
+
+	storage_pointer data() const {
+	    return data_;
+	}
+
+	size_t size() const {
+	    return size_;
 	}
 	
     private:
-	storage_pointer ptr_;
-	size_t record_size_;
+	storage_pointer data_;
+	size_t size_;
     };
-    
-    RecordIterator(storage_pointer ptr, size_t record_size)
-	: ptr_(ptr)
-	, record_size_(record_size) {
+
+    struct value_type {
+	value_type(reference r)
+	    : size_(r.size()) {
+	    std::copy(r.data(), r.data() + r.size(), &data_[0]);
+	}
+
+	value_type(value_type&& other) noexcept
+	    : size_(other.size()) {
+	    std::copy(other.data(), other.data() + other.size(), &data_[0]);
+	}
+
+	storage_pointer data() const {
+	    return (storage_pointer)&data_[0];
+	}
+
+	size_t size() const {
+	    return size_;
+	}
+
+    private:
+	storage_type data_[56];
+	size_t size_;
+    };
+
+    RecordIterator(storage_pointer data, size_t size)
+	: data_(data)
+	, size_(size) {
+    }
+
+    storage_pointer data() {
+	return data_;
+    }
+
+    const storage_pointer data() const {
+	return data_;
+    }
+
+    size_t size() const {
+	return size_;
     }
 
     reference operator*() {
-	return {ptr_, record_size_};
+	return reference{data_, size_};
     }
 
-    reference operator[](size_t i) {
-	return {ptr_ + i * record_size_, record_size_};
+    reference operator[](size_t i) const {
+	return *(*this + index);
     }
     
     RecordIterator& operator++() {
-	ptr_ += record_size_;
+	data_ += size_;
 	return *this;
     }
     
     RecordIterator& operator--() {
-	ptr_ -= record_size_;
+	data_ -= size_;
 	return *this;
     }
     
@@ -81,7 +127,7 @@ struct RecordIterator {
     }
 
     RecordIterator& operator+=(size_t n) {
-	ptr_ += n * record_size_;
+	data_ += n * size_;
 	return *this;
     }
 
@@ -92,7 +138,7 @@ struct RecordIterator {
     }
 
     RecordIterator& operator-=(size_t n) {
-	ptr_ -= n * record_size_;
+	data_ -= n * size_;
 	return *this;
     }
 
@@ -103,36 +149,61 @@ struct RecordIterator {
     }
 
     friend difference_type operator-(const RecordIterator& a, const RecordIterator& b) {
-	return (a.ptr_ - b.ptr_) / a.record_size_;
+	assert(a.size() == b.size());
+	return (a.data_ - b.data_) / a.size_;
     }
 
     friend auto operator<=>(const RecordIterator& a, const RecordIterator& b) = default;
     friend bool operator==(const RecordIterator& a, const RecordIterator& b) = default;
 
 private:
-    storage_pointer ptr_;
-    size_t record_size_;
+    storage_pointer data_;
+    size_t size_;
 };
+
+template<class T>
+RecordIterator<T>::reference::reference(RecordIterator<T>::value_type& value)
+    : data_(value.data())
+    , size_(value.size()) {
+}
+
+template<class T>
+typename RecordIterator<T>::reference& RecordIterator<T>::reference::operator=
+(const RecordIterator<T>::value_type& value) {
+    assert(size() == value.size());
+    std::copy(value.data(), value.data() + value.size(), data());
+    return *this;
+}
 
 using std::cout, std::endl;
 
 int main(int argc, const char *argv[]) {
-    int nrecords = 20, nbytes = 16;
+    int nrecords = 10'000'000, nbytes = 50;
     std::vector<uint8_t> data(nrecords * nbytes);
     
     std::uniform_int_distribution<uint8_t> d;
     std::mt19937_64 rng;
     std::generate(data.begin(), data.end(), [&]() { return d(rng); });
 
-    int key_index = 8;
-    auto cmp = [&](uint8_t *a, uint8_t *b) {
-	int aval = *(int*)(a + key_index), bval = *(int*)(b + key_index);
+    int key_index = 20;
+    auto cmp = [&](RecordIterator<uint8_t>::reference a, RecordIterator<uint8_t>::reference b) {
+	int aval = *(int*)(a.data() + key_index), bval = *(int*)(b.data() + key_index);
 	return aval < bval;
     };
 
     RecordIterator begin(data.data(), nbytes);
     RecordIterator end(data.data() + data.size(), nbytes);
     std::sort(begin, end, cmp);
+
+    int last_value = std::numeric_limits<int>::min();
+    for (auto iter = RecordIterator(data.data(), nbytes);
+	 iter != RecordIterator(data.data() + data.size(), nbytes);
+	 ++iter) {
+	auto a = (*iter).data();
+	auto val = *(int*)(a + key_index);
+	assert(last_value <= val);
+	last_value = val;
+    }
 
     return 0;
 }
