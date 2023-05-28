@@ -193,7 +193,7 @@ private:
 using std::cout, std::endl;
 
 int tool_main(int argc, const char *argv[]) {
-    int nrecords = 1'000'000, nbytes = 1024;
+    int nrecords = 10'000'000, nbytes = 8;
     std::vector<uint8_t> data(nrecords * nbytes);
     
     std::uniform_int_distribution<uint8_t> d(0, 100);

@@ -4,191 +4,200 @@
 #undef NDEBUG
 #include <cassert>
 
-#include <algorithm>
 #include <iostream>
 #include <random>
-#include <span>
 #include "core/chrono/stopwatch.h"
+#include "core/sort/record_iterator.h"
+
+using namespace core::sort;
+using std::cout, std::endl;
 
 template<class T>
-struct RecordIterator {
-    using storage_type = T;
-    using storage_pointer = storage_type*;
+struct Record;
 
-    using iterator_category = std::random_access_iterator_tag;
-    using difference_type = std::ptrdiff_t;
-
-    struct value_type;
+template<class T>
+struct RecordReference {
+    explicit RecordReference(T* data, size_t size):
+        _data(data), _size(size) {}
     
-    struct reference {
-	explicit reference(storage_pointer data, size_t size)
-	    : data_(data)
-	    , size_(size) {
-	}
-
-	reference(const reference& other) = default;
-	
-	auto& operator=(reference other) {
-	    assert(size() == other.size());
-	    std::copy(other.data_, other.data_ + size_, data_);
-	    return *this;
-	}
-	
-	reference(value_type&);
-	
-	reference& operator=(const value_type&);
-	
-	friend void swap(reference a, reference b) {
-	    assert(a.size() == b.size());
-	    // for (auto i = 0; i < a.size(); ++i)
-	    // 	std::swap(a.data_[i], b.data_[i]);
-	    auto size = a.size();
-	    storage_pointer buffer = (storage_pointer)alloca(size * sizeof(storage_type));
-	    std::copy(a.data(), a.data() + size, buffer);
-	    std::copy(b.data(), b.data() + size, a.data());
-	    std::copy(buffer, buffer + size, b.data());
-	}
-
-	storage_pointer data() const {
-	    return data_;
-	}
-
-	size_t size() const {
-	    return size_;
-	}
-	
-    private:
-	storage_pointer data_;
-	size_t size_;
-    };
-
-    struct value_type {
-	value_type(reference r)
-	    : data_((storage_pointer)std::malloc(r.size())),
-	      size_(r.size()) {
-	    std::copy(r.data(), r.data() + r.size(), data_);
-	}
-
-	value_type(value_type&& other) noexcept
-	    : data_(other.data_)
-	    , size_(other.size()) {
-	    other.data_ = nullptr;
-	}
-
-	~value_type() {
-	    free(data_);
-	}
-
-	storage_pointer data() const {
-	    return (storage_pointer)&data_[0];
-	}
-
-	size_t size() const {
-	    return size_;
-	}
-
-    private:
-	storage_pointer data_{nullptr};
-	size_t size_;
-    };
-
-    RecordIterator(storage_pointer data, size_t size)
-	: data_(data)
-	, size_(size) {
-    }
-
-    storage_pointer data() {
-	return data_;
-    }
-
-    const storage_pointer data() const {
-	return data_;
-    }
-
-    size_t size() const {
-	return size_;
-    }
-
-    reference operator*() {
-	return reference{data_, size_};
-    }
-
-    reference operator[](size_t i) const {
-	return *(*this + index);
+    RecordReference(Record<T>&);
+    
+    RecordReference(RecordReference const& rhs):
+        _data(rhs.data()), _size(rhs.size()) {}
+    
+    /// Because this represents a reference, an assignment represents a copy of
+    /// the referred-to value, not of the reference
+    RecordReference& operator=(RecordReference const& rhs) {
+        assert(size() == rhs.size());
+        std::memcpy(data(), rhs.data(), sizeof(T) * size());
+        return *this;
     }
     
-    RecordIterator& operator++() {
-	data_ += size_;
-	return *this;
+    RecordReference& operator=(Record<T> const& rhs);
+    
+    /// Also `swap` swaps 'through' the reference
+    friend void swap(RecordReference a, RecordReference b) {
+        assert(a.size() == b.size());
+	std::swap_ranges(a.data(), a.data() + a.size(), b.data());
+        // size_t size = sizeof(T) * a.size();
+        // auto* buffer = (T*)alloca(size);
+        // std::memcpy(buffer, a.data(), size);
+        // std::memcpy(a.data(), b.data(), size);
+        // std::memcpy(b.data(), buffer, size);
     }
     
-    RecordIterator& operator--() {
-	data_ -= size_;
-	return *this;
-    }
+    T *data() const { return _data; }
     
-    RecordIterator operator++(int) {
-	auto tmp = *this;
-	++(*this);
-	return tmp;
-    }
-
-    RecordIterator operator--(int) {
-	auto tmp = *this;
-	--(*this);
-	return tmp;
-    }
-
-    RecordIterator& operator+=(size_t n) {
-	data_ += n * size_;
-	return *this;
-    }
-
-    RecordIterator operator+(size_t n) {
-	auto r = *this;
-	r += n;
-	return r;
-    }
-
-    RecordIterator& operator-=(size_t n) {
-	data_ -= n * size_;
-	return *this;
-    }
-
-    RecordIterator operator-(size_t n) {
-	auto r = *this;
-	r -= n;
-	return r;
-    }
-
-    friend difference_type operator-(const RecordIterator& a, const RecordIterator& b) {
-	assert(a.size() == b.size());
-	return (a.data_ - b.data_) / a.size_;
-    }
-
-    friend auto operator<=>(const RecordIterator& a, const RecordIterator& b) = default;
-    friend bool operator==(const RecordIterator& a, const RecordIterator& b) = default;
-
+    size_t size() const { return _size; }
+    
 private:
-    storage_pointer data_;
-    size_t size_;
+    T *_data;
+    size_t _size;
 };
 
 template<class T>
-RecordIterator<T>::reference::reference(RecordIterator<T>::value_type& value)
-    : data_(value.data())
-    , size_(value.size()) {
-}
+struct Record {
+    static constexpr size_t InlineSize = 8; 
+    
+    Record(RecordReference<T> ref): _size(ref.size()) {
+        if (is_inline()) {
+            std::memcpy(&inline_data, ref.data(), sizeof(T) * size());
+        }
+        else {
+            heap_data = (T*)std::malloc(sizeof(T) * size());
+            std::memcpy(heap_data, ref.data(), sizeof(T) * size());
+        }
+    }
+
+    Record(Record&& rhs) noexcept: _size(rhs.size()) {
+        if (is_inline()) {
+            std::memcpy(&inline_data, &rhs.inline_data, sizeof(T) * size());
+        }
+        else {
+            heap_data = rhs.heap_data;
+            rhs.heap_data = nullptr;
+        }
+    }
+    
+    ~Record() {
+        if (!is_inline()) {
+            std::free(heap_data);
+        }
+    }
+    
+    T *data() { return (T*)((Record const*)this)->data(); }
+    
+    const T *data() const { return is_inline() ? inline_data : heap_data; }
+    
+    size_t size() const { return _size; }
+    
+private:
+    bool is_inline() const { return _size <= InlineSize; }
+    
+    size_t _size;
+    union {
+        T inline_data[InlineSize];
+        T *heap_data;
+    };
+};
+
+/// After the definition of Record (see below):
 
 template<class T>
-typename RecordIterator<T>::reference& RecordIterator<T>::reference::operator=
-(const RecordIterator<T>::value_type& value) {
-    assert(size() == value.size());
-    std::copy(value.data(), value.data() + value.size(), data());
+RecordReference<T>::RecordReference(Record<T>& rhs):
+    _data(rhs.data()), _size(rhs.size()) {}
+
+template<class T>
+RecordReference<T>& RecordReference<T>::operator=(Record<T> const& rhs) {
+    assert(size() == rhs.size());
+    std::memcpy(data(), rhs.data(), sizeof(T) * size());
     return *this;
 }
 
-using std::cout, std::endl;
+template<class T>
+struct MemoryIterator {
+    using iterator_category = std::random_access_iterator_tag;
+    using difference_type = std::ptrdiff_t;
+    using value_type = Record<T>;
+    using pointer = void*;
+    using reference = RecordReference<T>;
+
+    MemoryIterator(T *ptr, size_t size)
+        : ptr_(ptr)
+        , size_(size) {
+    }
+
+    reference operator*() const {
+        return reference(ptr_, size_);
+    }
+
+    reference operator[](size_t index) const {
+        return *(*this + index);
+    }
+
+    MemoryIterator& operator++() {
+        ptr_ += size_;
+        return *this;
+    }
+
+    MemoryIterator& operator--() {
+        ptr_ -= size_;
+        return *this;
+    }
+
+    MemoryIterator operator++(int) {
+        auto tmp = *this;
+        ++(*this);
+        return tmp;
+    }
+
+    MemoryIterator operator--(int) {
+        auto tmp = *this;
+        --(*this);
+        return tmp;
+    }
+
+    MemoryIterator& operator+=(size_t n) {
+        ptr_ += n * size_;
+        return *this;
+    }
+
+    MemoryIterator operator+(size_t n) const {
+        auto r = *this;
+        r += n;
+        return r;
+    }
+
+    MemoryIterator& operator-=(size_t n) {
+        ptr_ -= n * size_;
+        return *this;
+    }
+
+    MemoryIterator operator-(size_t n) const {
+        auto r = *this;
+        r -= n;
+        return r;
+    }
+    
+    friend bool operator==(const MemoryIterator& a, const MemoryIterator& b) {
+        assert(a.size_ == b.size_);
+        return a.ptr_ == b.ptr_;
+    }
+    
+    friend std::strong_ordering operator<=>(const MemoryIterator& a, const MemoryIterator& b) {
+        assert(a.size_ == b.size_);
+        return a.ptr_ <=> b.ptr_;
+    }
+
+    friend difference_type operator-(const MemoryIterator& a, const MemoryIterator& b) {
+        assert(a.size_ == b.size_);
+        return (a.ptr_ - b.ptr_) / a.size_;
+    }
+
+private:
+    T* ptr_;
+    size_t size_;
+};
 
 template<class Work>
 void measure(std::string_view desc, size_t nr, size_t nb, Work&& work) {
@@ -225,89 +234,64 @@ void measure(std::string_view desc, size_t nr, size_t nb, Work&& work) {
 // record 10000000 x 256 : 1730 ms
 // record 10000000 x 1024 : 6219 ms
 
+template<class T, size_t N, size_t NumBytes = sizeof(T) * N>
+void measure_direct() {
+    measure("direct", 10'000'000, sizeof(T) * N, [](auto *data, int nr, int nb) {
+	assert(nb == NumBytes);
+	struct sN { T data[N]; };
+	auto begin = (sN*)data;
+	auto end = (sN*)((char*)data + nr * nb);
+	std::sort(begin, end, [](auto a, auto b) {
+	    return a.data[0] < b.data[0];
+	});
+    });
+}
+
+template<class T>
+void measure_record(int n) {
+    using RecordReference = typename RecordIterator<T>::reference;
+    measure("record", 10'000'000, sizeof(T) * n, [&](auto *data, int nr, int nb) {
+	assert(sizeof(T) * n == nb);
+	RecordIterator<T> begin((T*)data, nb / sizeof(T));
+	RecordIterator<T> end(begin + nr);
+	std::sort(begin, end, [](RecordReference a, RecordReference b) {
+	    return *a.data() < *b.data();
+	});
+    });
+}
+
+template<class T>
+void measure_memory(int n) {
+    using RecordReference = typename MemoryIterator<T>::reference;
+    measure("memory", 10'000'000, sizeof(T) * n, [&](auto *data, int nr, int nb) {
+	assert(sizeof(T) * n == nb);
+	MemoryIterator<T> begin((T*)data, nb / sizeof(T));
+	MemoryIterator<T> end(begin + nr);
+	std::sort(begin, end, [](RecordReference a, RecordReference b) {
+	    return *a.data() < *b.data();
+	});
+    });
+}
+
 int main(int argc, const char *argv[]) {
-    measure("direct", 10'000'000, 8, [](auto *data, int nr, int nb) {
-	auto begin = (uint64_t*)data;
-	auto end = (uint64_t*)((char*)data + nr * nb);
-	std::sort(begin, end, [](auto a, auto b) {
-	    return a < b;
-	});
-    });
-    
-    measure("direct", 10'000'000, 64, [](auto *data, int nr, int nb) {
-	assert(nb == 64);
-	struct s64 { uint64_t data[8]; };
-	static_assert(sizeof(s64) == 64);
-	auto begin = (s64*)data;
-	auto end = begin + nr;
-	std::sort(begin, end, [](auto a, auto b) {
-	    return a.data[0] < b.data[0];
-	});
-    });
-    
-    measure("direct", 10'000'000, 256, [](auto *data, int nr, int nb) {
-	assert(nb == 256);
-	struct s256 { uint64_t data[32]; };
-	static_assert(sizeof(s256) == 256);
-	auto begin = (s256*)data;
-	auto end = begin + nr;
-	std::sort(begin, end, [](auto a, auto b) {
-	    return a.data[0] < b.data[0];
-	});
-    });
-    
-    measure("direct", 10'000'000, 1024, [](auto *data, int nr, int nb) {
-	assert(nb == 1024);
-	struct s1024 { uint64_t data[128]; };
-	static_assert(sizeof(s1024) == 1024);
-	auto begin = (s1024*)data;
-	auto end = begin + nr;
-	std::sort(begin, end, [](auto a, auto b) {
-	    return a.data[0] < b.data[0];
-	});
-    });
-    
+    for (auto i = 1; i <= 8; ++i)
+	measure_memory<uint64_t>(i);
+
     cout << endl;
     
-    measure("record", 10'000'000, 8, [](auto *data, int nr, int nb) {
-	RecordIterator begin((uint8_t*)data, nb);
-	RecordIterator end(begin + nr);
-	std::sort(begin, end,
-		  [](RecordIterator<uint8_t>::reference a, RecordIterator<uint8_t>::reference b) {
-		      auto aval = *(uint64_t*)a.data(), bval = *(uint64_t*)b.data();
-		      return aval < bval;
-		  });
-    });
+    for (auto i = 1; i <= 8; ++i)
+	measure_record<uint64_t>(i);
 
-    measure("record", 10'000'000, 64, [](auto *data, int nr, int nb) {
-	RecordIterator begin((uint8_t*)data, nb);
-	RecordIterator end(begin + nr);
-	std::sort(begin, end,
-		  [](RecordIterator<uint8_t>::reference a, RecordIterator<uint8_t>::reference b) {
-		      auto aval = *(uint64_t*)a.data(), bval = *(uint64_t*)b.data();
-		      return aval < bval;
-		  });
-    });
+    cout << endl;
+
+    measure_direct<uint64_t, 1>();
+    measure_direct<uint64_t, 2>();
+    measure_direct<uint64_t, 3>();
+    measure_direct<uint64_t, 4>();
+    measure_direct<uint64_t, 5>();
+    measure_direct<uint64_t, 6>();
+    measure_direct<uint64_t, 7>();
+    measure_direct<uint64_t, 8>();
     
-    measure("record", 10'000'000, 256, [](auto *data, int nr, int nb) {
-	RecordIterator begin((uint8_t*)data, nb);
-	RecordIterator end(begin + nr);
-	std::sort(begin, end,
-		  [](RecordIterator<uint8_t>::reference a, RecordIterator<uint8_t>::reference b) {
-		      auto aval = *(uint64_t*)a.data(), bval = *(uint64_t*)b.data();
-		      return aval < bval;
-		  });
-    });
-
-    measure("record", 10'000'000, 1024, [](auto *data, int nr, int nb) {
-	RecordIterator begin((uint8_t*)data, nb);
-	RecordIterator end(begin + nr);
-	std::sort(begin, end,
-		  [](RecordIterator<uint8_t>::reference a, RecordIterator<uint8_t>::reference b) {
-		      auto aval = *(uint64_t*)a.data(), bval = *(uint64_t*)b.data();
-		      return aval < bval;
-		  });
-    });
-
     return 0;
 }
