@@ -8,6 +8,7 @@
 #include <iostream>
 #include <random>
 #include <span>
+#include "core/chrono/stopwatch.h"
 
 template<class T>
 struct RecordIterator {
@@ -16,7 +17,7 @@ struct RecordIterator {
 
     using iterator_category = std::random_access_iterator_tag;
     using difference_type = std::ptrdiff_t;
-    
+
     struct value_type;
     
     struct reference {
@@ -28,6 +29,7 @@ struct RecordIterator {
 	reference(const reference& other) = default;
 	
 	auto& operator=(reference other) {
+	    assert(size() == other.size());
 	    std::copy(other.data_, other.data_ + size_, data_);
 	    return *this;
 	}
@@ -38,8 +40,13 @@ struct RecordIterator {
 	
 	friend void swap(reference a, reference b) {
 	    assert(a.size() == b.size());
-	    for (auto i = 0; i < a.size(); ++i)
-		std::swap(a.data_[i], b.data_[i]);
+	    // for (auto i = 0; i < a.size(); ++i)
+	    // 	std::swap(a.data_[i], b.data_[i]);
+	    auto size = a.size();
+	    storage_pointer buffer = (storage_pointer)alloca(size * sizeof(storage_type));
+	    std::copy(a.data(), a.data() + size, buffer);
+	    std::copy(b.data(), b.data() + size, a.data());
+	    std::copy(buffer, buffer + size, b.data());
 	}
 
 	storage_pointer data() const {
@@ -57,13 +64,19 @@ struct RecordIterator {
 
     struct value_type {
 	value_type(reference r)
-	    : size_(r.size()) {
-	    std::copy(r.data(), r.data() + r.size(), &data_[0]);
+	    : data_((storage_pointer)std::malloc(r.size())),
+	      size_(r.size()) {
+	    std::copy(r.data(), r.data() + r.size(), data_);
 	}
 
 	value_type(value_type&& other) noexcept
-	    : size_(other.size()) {
-	    std::copy(other.data(), other.data() + other.size(), &data_[0]);
+	    : data_(other.data_)
+	    , size_(other.size()) {
+	    other.data_ = nullptr;
+	}
+
+	~value_type() {
+	    free(data_);
 	}
 
 	storage_pointer data() const {
@@ -75,7 +88,7 @@ struct RecordIterator {
 	}
 
     private:
-	storage_type data_[56];
+	storage_pointer data_{nullptr};
 	size_t size_;
     };
 
@@ -177,33 +190,124 @@ typename RecordIterator<T>::reference& RecordIterator<T>::reference::operator=
 
 using std::cout, std::endl;
 
-int main(int argc, const char *argv[]) {
-    int nrecords = 10'000'000, nbytes = 50;
-    std::vector<uint8_t> data(nrecords * nbytes);
-    
+template<class Work>
+void measure(std::string_view desc, size_t nr, size_t nb, Work&& work) {
+    std::vector<uint8_t> data(nr * nb);
     std::uniform_int_distribution<uint8_t> d;
     std::mt19937_64 rng;
     std::generate(data.begin(), data.end(), [&]() { return d(rng); });
+    
+    chron::StopWatch timer;
+    timer.mark();
+    work(data.data(), nr, nb);
+    auto ms = timer.elapsed_duration<std::chrono::milliseconds>().count();
+    cout << desc << " " << nr << " x " << nb << " : " << ms << " ms" << endl;
 
-    int key_index = 20;
-    auto cmp = [&](RecordIterator<uint8_t>::reference a, RecordIterator<uint8_t>::reference b) {
-	int aval = *(int*)(a.data() + key_index), bval = *(int*)(b.data() + key_index);
-	return aval < bval;
-    };
-
-    RecordIterator begin(data.data(), nbytes);
-    RecordIterator end(data.data() + data.size(), nbytes);
-    std::sort(begin, end, cmp);
-
-    int last_value = std::numeric_limits<int>::min();
-    for (auto iter = RecordIterator(data.data(), nbytes);
-	 iter != RecordIterator(data.data() + data.size(), nbytes);
+    uint64_t last_value{};
+    for (auto iter = RecordIterator(data.data(), nb);
+	 iter != RecordIterator(data.data() + data.size(), nb);
 	 ++iter) {
-	auto a = (*iter).data();
-	auto val = *(int*)(a + key_index);
+	auto a = iter.data();
+	auto val = *(uint64_t*)a;
 	assert(last_value <= val);
 	last_value = val;
     }
+}
+
+// M1
+// direct 10000000 x 8 : 622 ms
+// direct 10000000 x 64 : 759 ms
+// direct 10000000 x 256 : 1362 ms
+// direct 10000000 x 1024 : 5749 ms
+
+// record 10000000 x 8 : 1196 ms
+// record 10000000 x 64 : 1225 ms
+// record 10000000 x 256 : 1730 ms
+// record 10000000 x 1024 : 6219 ms
+
+int main(int argc, const char *argv[]) {
+    measure("direct", 10'000'000, 8, [](auto *data, int nr, int nb) {
+	auto begin = (uint64_t*)data;
+	auto end = (uint64_t*)((char*)data + nr * nb);
+	std::sort(begin, end, [](auto a, auto b) {
+	    return a < b;
+	});
+    });
+    
+    measure("direct", 10'000'000, 64, [](auto *data, int nr, int nb) {
+	assert(nb == 64);
+	struct s64 { uint64_t data[8]; };
+	static_assert(sizeof(s64) == 64);
+	auto begin = (s64*)data;
+	auto end = begin + nr;
+	std::sort(begin, end, [](auto a, auto b) {
+	    return a.data[0] < b.data[0];
+	});
+    });
+    
+    measure("direct", 10'000'000, 256, [](auto *data, int nr, int nb) {
+	assert(nb == 256);
+	struct s256 { uint64_t data[32]; };
+	static_assert(sizeof(s256) == 256);
+	auto begin = (s256*)data;
+	auto end = begin + nr;
+	std::sort(begin, end, [](auto a, auto b) {
+	    return a.data[0] < b.data[0];
+	});
+    });
+    
+    measure("direct", 10'000'000, 1024, [](auto *data, int nr, int nb) {
+	assert(nb == 1024);
+	struct s1024 { uint64_t data[128]; };
+	static_assert(sizeof(s1024) == 1024);
+	auto begin = (s1024*)data;
+	auto end = begin + nr;
+	std::sort(begin, end, [](auto a, auto b) {
+	    return a.data[0] < b.data[0];
+	});
+    });
+    
+    cout << endl;
+    
+    measure("record", 10'000'000, 8, [](auto *data, int nr, int nb) {
+	RecordIterator begin((uint8_t*)data, nb);
+	RecordIterator end(begin + nr);
+	std::sort(begin, end,
+		  [](RecordIterator<uint8_t>::reference a, RecordIterator<uint8_t>::reference b) {
+		      auto aval = *(uint64_t*)a.data(), bval = *(uint64_t*)b.data();
+		      return aval < bval;
+		  });
+    });
+
+    measure("record", 10'000'000, 64, [](auto *data, int nr, int nb) {
+	RecordIterator begin((uint8_t*)data, nb);
+	RecordIterator end(begin + nr);
+	std::sort(begin, end,
+		  [](RecordIterator<uint8_t>::reference a, RecordIterator<uint8_t>::reference b) {
+		      auto aval = *(uint64_t*)a.data(), bval = *(uint64_t*)b.data();
+		      return aval < bval;
+		  });
+    });
+    
+    measure("record", 10'000'000, 256, [](auto *data, int nr, int nb) {
+	RecordIterator begin((uint8_t*)data, nb);
+	RecordIterator end(begin + nr);
+	std::sort(begin, end,
+		  [](RecordIterator<uint8_t>::reference a, RecordIterator<uint8_t>::reference b) {
+		      auto aval = *(uint64_t*)a.data(), bval = *(uint64_t*)b.data();
+		      return aval < bval;
+		  });
+    });
+
+    measure("record", 10'000'000, 1024, [](auto *data, int nr, int nb) {
+	RecordIterator begin((uint8_t*)data, nb);
+	RecordIterator end(begin + nr);
+	std::sort(begin, end,
+		  [](RecordIterator<uint8_t>::reference a, RecordIterator<uint8_t>::reference b) {
+		      auto aval = *(uint64_t*)a.data(), bval = *(uint64_t*)b.data();
+		      return aval < bval;
+		  });
+    });
 
     return 0;
 }

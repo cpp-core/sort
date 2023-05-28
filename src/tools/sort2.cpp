@@ -1,6 +1,9 @@
 // Copyright (C) 2022, 2023 by Mark Melton
 //
 
+#undef NDEBUG
+#include <cassert>
+
 #include <algorithm>
 #include <random>
 #include "core/util/tool.h"
@@ -48,7 +51,7 @@ private:
 };
 
 struct Record {
-    static constexpr size_t InlineSize = 56; 
+    static constexpr size_t InlineSize = 8; 
     
     Record(RecordReference ref): _size(ref.size()) {
         if (is_inline()) {
@@ -190,14 +193,14 @@ private:
 using std::cout, std::endl;
 
 int tool_main(int argc, const char *argv[]) {
-    int nrecords = 10'000'000, nbytes = 50;
+    int nrecords = 1'000'000, nbytes = 1024;
     std::vector<uint8_t> data(nrecords * nbytes);
     
-    std::uniform_int_distribution<uint8_t> d;
+    std::uniform_int_distribution<uint8_t> d(0, 100);
     std::mt19937_64 rng;
     std::generate(data.begin(), data.end(), [&]() { return d(rng); });
 
-    int key_index = 20;
+    int key_index = 0;
     auto cmp = [&](RecordReference a, RecordReference b) {
 	int aval = *(int*)((char*)a.data() + key_index), bval = *(int*)((char*)b.data() + key_index);
 	return aval < bval;
@@ -217,6 +220,5 @@ int tool_main(int argc, const char *argv[]) {
 	last_value = val;
     }
     
-
     return 0;
 }
