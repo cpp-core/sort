@@ -114,7 +114,9 @@ target_include_directories(sort PUBLIC ${GMP_INCLUDE_DIRS})
 target_link_libraries(sort PUBLIC stream::stream fp::fp util::util chrono::chrono)
 
 foreach(prog
+    sort0
     sort1
+    sort2
     )
   add_executable(${prog} src/tools/${prog}.cpp)
   target_link_libraries(${prog} sort::sort)
