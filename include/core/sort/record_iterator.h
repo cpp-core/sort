@@ -32,7 +32,7 @@ struct RecordIterator {
 
 	reference(const reference& other) = default;
 	
-	auto& operator=(reference other) {
+	reference& operator=(const reference other) {
 	    assert(size() == other.size());
 	    std::copy(other.data_, other.data_ + size_, data_);
 	    return *this;
@@ -89,8 +89,12 @@ struct RecordIterator {
 		free(data_);
 	}
 
-	storage_pointer data() const {
-	    return (storage_pointer)data_;
+	const storage_pointer data() const {
+	    return data_;
+	}
+
+	storage_pointer data() {
+	    return data_;
 	}
 
 	size_t size() const {
@@ -124,7 +128,11 @@ struct RecordIterator {
 	    free(data_);
 	}
 
-	storage_pointer data() const {
+	const storage_pointer data() const {
+	    return data_;
+	}
+
+	storage_pointer data() {
 	    return data_;
 	}
 

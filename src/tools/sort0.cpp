@@ -268,40 +268,40 @@ void measure_memory(int n) {
 	MemoryIterator<T> begin((T*)data, nb / sizeof(T));
 	MemoryIterator<T> end(begin + nr);
 	std::sort(begin, end, [](RecordReference a, RecordReference b) {
-	    return *a.data() < *b.data();
+	    return *(uint64_t*)a.data() < *(uint64_t*)b.data();
 	});
     });
 }
 
 int main(int argc, const char *argv[]) {
-    // for (auto i = 1; i <= 8; ++i)
-    // 	measure_memory<uint64_t>(i);
-    // cout << endl;
+    for (auto i = 1; i <= 8; ++i)
+    	measure_memory<uint64_t>(i);
+    cout << endl;
     
-    for (auto i = 1; i <= 8; ++i)
-	measure_record<uint8_t, false, false>(8*i);
-    cout << endl;
+    // for (auto i = 1; i <= 8; ++i)
+    // 	measure_record<uint8_t, false, false>(8*i);
+    // cout << endl;
 
-    for (auto i = 1; i <= 8; ++i)
-	measure_record<uint8_t, false, true>(8*i);
-    cout << endl;
+    // for (auto i = 1; i <= 8; ++i)
+    // 	measure_record<uint8_t, false, true>(8*i);
+    // cout << endl;
 
-    for (auto i = 1; i <= 8; ++i)
-	measure_record<uint8_t, true, false>(8*i);
-    cout << endl;
+    // for (auto i = 1; i <= 8; ++i)
+    // 	measure_record<uint8_t, true, false>(8*i);
+    // cout << endl;
 
-    for (auto i = 1; i <= 8; ++i)
-	measure_record<uint8_t, true, true>(8*i);
-    cout << endl;
+    // for (auto i = 1; i <= 8; ++i)
+    // 	measure_record<uint8_t, true, true>(8*i);
+    // cout << endl;
 
-    measure_direct<uint8_t, 1>();
-    measure_direct<uint8_t, 2>();
-    measure_direct<uint8_t, 3>();
-    measure_direct<uint8_t, 4>();
-    measure_direct<uint8_t, 5>();
-    measure_direct<uint8_t, 6>();
-    measure_direct<uint8_t, 7>();
-    measure_direct<uint8_t, 8>();
+    // measure_direct<uint8_t, 1>();
+    // measure_direct<uint8_t, 2>();
+    // measure_direct<uint8_t, 3>();
+    // measure_direct<uint8_t, 4>();
+    // measure_direct<uint8_t, 5>();
+    // measure_direct<uint8_t, 6>();
+    // measure_direct<uint8_t, 7>();
+    // measure_direct<uint8_t, 8>();
     
     return 0;
 }
