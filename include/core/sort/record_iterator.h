@@ -211,6 +211,11 @@ struct RecordIterator {
 	return (a.data_ - b.data_) / a.size_;
     }
 
+    friend RecordIterator operator-(RecordIterator a, size_t n) {
+	a -= n;
+	return a;
+    }
+
     friend auto operator<=>(const RecordIterator& a, const RecordIterator& b) = default;
     friend bool operator==(const RecordIterator& a, const RecordIterator& b) = default;
 
