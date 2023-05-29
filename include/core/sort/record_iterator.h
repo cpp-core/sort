@@ -189,7 +189,7 @@ struct RecordIterator {
 	return *this;
     }
 
-    RecordIterator operator+(size_t n) {
+    RecordIterator operator+(size_t n) const {
 	auto r = *this;
 	r += n;
 	return r;
@@ -200,7 +200,7 @@ struct RecordIterator {
 	return *this;
     }
 
-    RecordIterator operator-(size_t n) {
+    RecordIterator operator-(size_t n) const {
 	auto r = *this;
 	r -= n;
 	return r;
@@ -209,11 +209,6 @@ struct RecordIterator {
     friend difference_type operator-(const RecordIterator& a, const RecordIterator& b) {
 	assert(a.size() == b.size());
 	return (a.data_ - b.data_) / a.size_;
-    }
-
-    friend RecordIterator operator-(RecordIterator a, size_t n) {
-	a -= n;
-	return a;
     }
 
     friend auto operator<=>(const RecordIterator& a, const RecordIterator& b) = default;
