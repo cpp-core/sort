@@ -57,7 +57,7 @@ private:
 
 template<class T>
 struct Record {
-    static constexpr size_t InlineSize = 8; 
+    static constexpr size_t InlineSize = 1; 
     
     Record(RecordReference<T> ref): _size(ref.size()) {
         if (is_inline()) {
@@ -217,7 +217,7 @@ void measure(std::string_view desc, size_t nr, size_t nb, Work&& work) {
 	 iter != RecordIterator(data.data() + data.size(), nb);
 	 ++iter) {
 	auto a = iter.data();
-	auto val = *(uint64_t*)a;
+	auto val = *(uint8_t*)a;
 	assert(last_value <= val);
 	last_value = val;
     }
@@ -247,13 +247,13 @@ void measure_direct() {
     });
 }
 
-template<class T>
+template<class T, bool SwapRanges = false, bool HeapValueType = true>
 void measure_record(int n) {
-    using RecordReference = typename RecordIterator<T>::reference;
+    using RecordReference = typename RecordIterator<T, SwapRanges, HeapValueType>::reference;
     measure("record", 10'000'000, sizeof(T) * n, [&](auto *data, int nr, int nb) {
 	assert(sizeof(T) * n == nb);
-	RecordIterator<T> begin((T*)data, nb / sizeof(T));
-	RecordIterator<T> end(begin + nr);
+	RecordIterator<T, SwapRanges, HeapValueType> begin((T*)data, nb / sizeof(T));
+	RecordIterator<T, SwapRanges, HeapValueType> end(begin + nr);
 	std::sort(begin, end, [](RecordReference a, RecordReference b) {
 	    return *a.data() < *b.data();
 	});
@@ -274,24 +274,34 @@ void measure_memory(int n) {
 }
 
 int main(int argc, const char *argv[]) {
-    for (auto i = 1; i <= 8; ++i)
-	measure_memory<uint64_t>(i);
-
-    cout << endl;
+    // for (auto i = 1; i <= 8; ++i)
+    // 	measure_memory<uint64_t>(i);
+    // cout << endl;
     
     for (auto i = 1; i <= 8; ++i)
-	measure_record<uint64_t>(i);
-
+	measure_record<uint8_t, false, false>(8*i);
     cout << endl;
 
-    measure_direct<uint64_t, 1>();
-    measure_direct<uint64_t, 2>();
-    measure_direct<uint64_t, 3>();
-    measure_direct<uint64_t, 4>();
-    measure_direct<uint64_t, 5>();
-    measure_direct<uint64_t, 6>();
-    measure_direct<uint64_t, 7>();
-    measure_direct<uint64_t, 8>();
+    for (auto i = 1; i <= 8; ++i)
+	measure_record<uint8_t, false, true>(8*i);
+    cout << endl;
+
+    for (auto i = 1; i <= 8; ++i)
+	measure_record<uint8_t, true, false>(8*i);
+    cout << endl;
+
+    for (auto i = 1; i <= 8; ++i)
+	measure_record<uint8_t, true, true>(8*i);
+    cout << endl;
+
+    measure_direct<uint8_t, 1>();
+    measure_direct<uint8_t, 2>();
+    measure_direct<uint8_t, 3>();
+    measure_direct<uint8_t, 4>();
+    measure_direct<uint8_t, 5>();
+    measure_direct<uint8_t, 6>();
+    measure_direct<uint8_t, 7>();
+    measure_direct<uint8_t, 8>();
     
     return 0;
 }
