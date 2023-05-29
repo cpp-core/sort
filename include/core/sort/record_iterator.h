@@ -158,6 +158,10 @@ struct RecordIterator {
 	return reference{data_, size_};
     }
 
+    const reference operator*() const {
+	return reference{data_, size_};
+    }
+
     reference operator[](size_t i) const {
 	return *(*this + index);
     }
