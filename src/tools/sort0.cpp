@@ -217,7 +217,7 @@ void measure(std::string_view desc, size_t nr, size_t nb, Work&& work) {
 	 iter != RecordIterator(data.data() + data.size(), nb);
 	 ++iter) {
 	auto a = iter.data();
-	auto val = *(uint8_t*)a;
+	auto val = *(uint64_t*)a;
 	assert(last_value <= val);
 	last_value = val;
     }
