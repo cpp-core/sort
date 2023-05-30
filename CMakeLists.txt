@@ -84,7 +84,7 @@ add_chrono()
 # Build the library
 #
 set(SOURCES
-  dummy
+  placeholder
   )
 
 set(ASM_SOURCES
@@ -92,7 +92,7 @@ set(ASM_SOURCES
 
 set(FILES)
 foreach(SOURCE ${SOURCES})
-  list(APPEND FILES "src/${SOURCE}.cpp")
+  list(APPEND FILES "src/core/sort/${SOURCE}.cpp")
 endforeach()
 
 foreach(SOURCE ${ASM_SOURCES})
@@ -114,6 +114,7 @@ target_include_directories(sort PUBLIC ${GMP_INCLUDE_DIRS})
 target_link_libraries(sort PUBLIC stream::stream fp::fp util::util chrono::chrono)
 
 foreach(prog
+    example0
     sort0
     sort1
     sort2

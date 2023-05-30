@@ -55,6 +55,10 @@ struct RecordIterator {
 	    }
 	}
 
+	operator const storage_pointer() const {
+	    return data_;
+	}
+
 	storage_pointer data() const {
 	    return data_;
 	}
@@ -87,6 +91,10 @@ struct RecordIterator {
 	~stack_value_type() {
 	    if (not use_stack())
 		free(data_);
+	}
+
+	operator const storage_pointer() const {
+	    return data_;
 	}
 
 	const storage_pointer data() const {
@@ -126,6 +134,10 @@ struct RecordIterator {
 
 	~heap_value_type() {
 	    free(data_);
+	}
+
+	operator const storage_pointer() const {
+	    return data_;
 	}
 
 	const storage_pointer data() const {
