@@ -278,30 +278,30 @@ int main(int argc, const char *argv[]) {
     	measure_memory<uint64_t>(i);
     cout << endl;
     
-    // for (auto i = 1; i <= 8; ++i)
-    // 	measure_record<uint8_t, false, false>(8*i);
-    // cout << endl;
+    for (auto i = 1; i <= 8; ++i)
+    	measure_record<uint64_t, false, false>(i);
+    cout << endl;
 
-    // for (auto i = 1; i <= 8; ++i)
-    // 	measure_record<uint8_t, false, true>(8*i);
-    // cout << endl;
+    for (auto i = 1; i <= 8; ++i)
+    	measure_record<uint64_t, false, true>(i);
+    cout << endl;
 
-    // for (auto i = 1; i <= 8; ++i)
-    // 	measure_record<uint8_t, true, false>(8*i);
-    // cout << endl;
+    for (auto i = 1; i <= 8; ++i)
+    	measure_record<uint64_t, true, false>(i);
+    cout << endl;
 
-    // for (auto i = 1; i <= 8; ++i)
-    // 	measure_record<uint8_t, true, true>(8*i);
-    // cout << endl;
+    for (auto i = 1; i <= 8; ++i)
+    	measure_record<uint64_t, true, true>(i);
+    cout << endl;
 
-    // measure_direct<uint8_t, 1>();
-    // measure_direct<uint8_t, 2>();
-    // measure_direct<uint8_t, 3>();
-    // measure_direct<uint8_t, 4>();
-    // measure_direct<uint8_t, 5>();
-    // measure_direct<uint8_t, 6>();
-    // measure_direct<uint8_t, 7>();
-    // measure_direct<uint8_t, 8>();
+    measure_direct<uint64_t, 1>();
+    measure_direct<uint64_t, 2>();
+    measure_direct<uint64_t, 3>();
+    measure_direct<uint64_t, 4>();
+    measure_direct<uint64_t, 5>();
+    measure_direct<uint64_t, 6>();
+    measure_direct<uint64_t, 7>();
+    measure_direct<uint64_t, 8>();
     
     return 0;
 }

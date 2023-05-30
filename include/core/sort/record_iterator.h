@@ -12,7 +12,7 @@ namespace core::sort {
 /// equal sized records. This faciliates using generic algorithms,
 /// such as `std::sort`, with run-time sized value types.
 /// 
-template<class T, bool SwapRanges = false, bool HeapValueType = true>
+template<class T, bool SwapRanges = true, bool HeapValueType = true>
 struct RecordIterator {
     using storage_type = T;
     using storage_pointer = storage_type*;
@@ -162,11 +162,7 @@ struct RecordIterator {
 	return size_;
     }
 
-    reference operator*() {
-	return reference{data_, size_};
-    }
-
-    const reference operator*() const {
+    reference operator*() const {
 	return reference{data_, size_};
     }
 
