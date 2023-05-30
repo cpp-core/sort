@@ -6,6 +6,7 @@
 
 #include <iostream>
 #include <random>
+#include <sstream>
 #include "core/chrono/stopwatch.h"
 #include "core/sort/record_iterator.h"
 
@@ -224,15 +225,59 @@ void measure(std::string_view desc, size_t nr, size_t nb, Work&& work) {
 }
 
 // M1
-// direct 10000000 x 8 : 622 ms
-// direct 10000000 x 64 : 759 ms
-// direct 10000000 x 256 : 1362 ms
-// direct 10000000 x 1024 : 5749 ms
+// memory 10000000 x 8 : 751 ms
+// memory 10000000 x 16 : 772 ms
+// memory 10000000 x 24 : 793 ms
+// memory 10000000 x 32 : 815 ms
+// memory 10000000 x 40 : 840 ms
+// memory 10000000 x 48 : 868 ms
+// memory 10000000 x 56 : 889 ms
+// memory 10000000 x 64 : 916 ms
 
-// record 10000000 x 8 : 1196 ms
-// record 10000000 x 64 : 1225 ms
-// record 10000000 x 256 : 1730 ms
-// record 10000000 x 1024 : 6219 ms
+// record.8.0.0 10000000 x 8 : 1166 ms
+// record.8.0.0 10000000 x 16 : 1316 ms
+// record.8.0.0 10000000 x 24 : 1368 ms
+// record.8.0.0 10000000 x 32 : 1431 ms
+// record.8.0.0 10000000 x 40 : 1485 ms
+// record.8.0.0 10000000 x 48 : 1551 ms
+// record.8.0.0 10000000 x 56 : 1594 ms
+// record.8.0.0 10000000 x 64 : 1194 ms
+
+// record.8.0.1 10000000 x 8 : 1182 ms
+// record.8.0.1 10000000 x 16 : 1329 ms
+// record.8.0.1 10000000 x 24 : 1384 ms
+// record.8.0.1 10000000 x 32 : 1454 ms
+// record.8.0.1 10000000 x 40 : 1510 ms
+// record.8.0.1 10000000 x 48 : 1563 ms
+// record.8.0.1 10000000 x 56 : 1604 ms
+// record.8.0.1 10000000 x 64 : 1229 ms
+
+// record.8.1.0 10000000 x 8 : 779 ms
+// record.8.1.0 10000000 x 16 : 796 ms
+// record.8.1.0 10000000 x 24 : 817 ms
+// record.8.1.0 10000000 x 32 : 829 ms
+// record.8.1.0 10000000 x 40 : 849 ms
+// record.8.1.0 10000000 x 48 : 869 ms
+// record.8.1.0 10000000 x 56 : 896 ms
+// record.8.1.0 10000000 x 64 : 910 ms
+
+// record.8.1.1 10000000 x 8 : 772 ms
+// record.8.1.1 10000000 x 16 : 797 ms
+// record.8.1.1 10000000 x 24 : 825 ms
+// record.8.1.1 10000000 x 32 : 853 ms
+// record.8.1.1 10000000 x 40 : 869 ms
+// record.8.1.1 10000000 x 48 : 895 ms
+// record.8.1.1 10000000 x 56 : 917 ms
+// record.8.1.1 10000000 x 64 : 943 ms
+
+// direct 10000000 x 8 : 620 ms
+// direct 10000000 x 16 : 627 ms
+// direct 10000000 x 24 : 668 ms
+// direct 10000000 x 32 : 668 ms
+// direct 10000000 x 40 : 698 ms
+// direct 10000000 x 48 : 711 ms
+// direct 10000000 x 56 : 730 ms
+// direct 10000000 x 64 : 749 ms
 
 template<class T, size_t N, size_t NumBytes = sizeof(T) * N>
 void measure_direct() {
@@ -250,7 +295,9 @@ void measure_direct() {
 template<class T, bool SwapRanges = false, bool HeapValueType = true>
 void measure_record(int n) {
     using RecordReference = typename RecordIterator<T, SwapRanges, HeapValueType>::reference;
-    measure("record", 10'000'000, sizeof(T) * n, [&](auto *data, int nr, int nb) {
+    std::stringstream ss;
+    ss << "record" << "." << sizeof(T) << "." << SwapRanges << "." << HeapValueType;
+    measure(ss.str(), 10'000'000, sizeof(T) * n, [&](auto *data, int nr, int nb) {
 	assert(sizeof(T) * n == nb);
 	RecordIterator<T, SwapRanges, HeapValueType> begin((T*)data, nb / sizeof(T));
 	RecordIterator<T, SwapRanges, HeapValueType> end(begin + nr);
