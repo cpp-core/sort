@@ -24,7 +24,7 @@ void output_records(const std::vector<int>& data, int nrows, int ncols) {
 
 int main(int argc, const char *argv[]) {
     // Generate 10k records each with 7 integer numbered sequentially.
-    int nrows = 8, ncols = 5;
+    int nrows = 9, ncols = 5;
     std::vector<int> data(nrows * ncols);
     std::generate(data.begin(), data.end(), [n=0]() mutable { return n++; });
     cout << endl << "sequential: " << endl;
@@ -36,7 +36,9 @@ int main(int argc, const char *argv[]) {
     output_records(data, nrows, ncols);
     
     // Sort the records
-    std::sort(begin_record(data, ncols), end_record(data, ncols),
+    RecordIterator<int, false, true> begin(data.data(), ncols);
+    RecordIterator<int, false, true> end(begin + nrows);
+    std::sort(begin, end,
 	      [](const int *a, const int *b) {
 		  return a[0] < b[0];
 	      });

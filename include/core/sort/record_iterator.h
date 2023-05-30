@@ -2,6 +2,7 @@
 //
 
 #pragma once
+#include <iostream>
 #include <iterator>
 #include <algorithm>
 
@@ -76,7 +77,7 @@ struct RecordIterator {
     struct stack_value_type {
 	stack_value_type(reference r)
 	    : size_(r.size())
-	    , data_(use_stack() ? &arr[0] : (storage_pointer)std::malloc(r.size())) {
+	    , data_(use_stack() ? &arr[0] : (storage_pointer)std::malloc(sizeof(T) * r.size())) {
 	    std::copy(r.data(), r.data() + r.size(), data_);
 	}
 
@@ -121,7 +122,7 @@ struct RecordIterator {
 
     struct heap_value_type {
 	heap_value_type(reference r)
-	    : data_((storage_pointer)std::malloc(r.size())),
+	    : data_((storage_pointer)std::malloc(sizeof(T) * r.size())),
 	      size_(r.size()) {
 	    std::copy(r.data(), r.data() + r.size(), data_);
 	}

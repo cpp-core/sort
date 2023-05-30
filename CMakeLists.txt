@@ -69,10 +69,15 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 add_compile_options(-Wall)
-add_compile_options(-stdlib=libc++)
 add_compile_options(-g)
 add_compile_options(-O)
+
+add_compile_options(-stdlib=libc++)
 add_link_options(-stdlib=libc++)
+
+# add_compile_options(-fno-omit-frame-pointer)
+# add_compile_options(-fsanitize=address)
+# add_link_options(-fsanitize=address)
 
 # Add our dependencies
 #
