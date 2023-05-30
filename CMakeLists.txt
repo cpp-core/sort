@@ -124,10 +124,10 @@ endforeach()
 
 # Optionally configure the tests
 #
-# if(SORT_TEST)
-#  add_gtest()
-#  add_subdirectory(test)
-# endif()
+if(SORT_TEST)
+ add_gtest()
+ add_subdirectory(test)
+endif()
 
 # Optionally configure the documentation
 #

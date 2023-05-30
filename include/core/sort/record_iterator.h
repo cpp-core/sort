@@ -9,8 +9,8 @@ namespace core::sort {
 
 /// The `RecordIterator` template class implements the
 /// `std::random_access_iterator` concept for a contiguous sequence of
-/// equal sized records. This faciliates using generic algorithms,
-/// such as `std::sort`, with run-time sized value types.
+/// equal sized records. This faciliates using generic algorithms, such as
+/// `std::sort`, with run-time sized value types.
 /// 
 template<class T, bool SwapRanges = true, bool HeapValueType = true>
 struct RecordIterator {
@@ -150,6 +150,11 @@ struct RecordIterator {
 	, size_(size) {
     }
 
+    template<template<class...> class Container>
+    RecordIterator(Container<storage_type>& data, size_t size)
+	: RecordIterator(data.data(), size) {
+    }
+
     storage_pointer data() {
 	return data_;
     }
@@ -239,6 +244,16 @@ typename RecordIterator<T, SwapRanges, HeapValueType>::reference& RecordIterator
     assert(size() == value.size());
     std::copy(value.data(), value.data() + value.size(), data());
     return *this;
+}
+
+template<class T>
+auto begin_record(T& data, size_t n) {
+    return RecordIterator(data.data(), n);
+}
+
+template<class T>
+auto end_record(T& data, size_t n) {
+    return RecordIterator(data.data() + data.size(), n);
 }
 
 }; // core::sort

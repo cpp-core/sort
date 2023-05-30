@@ -294,14 +294,13 @@ void measure_direct() {
 
 template<class T, bool SwapRanges = false, bool HeapValueType = true>
 void measure_record(int n) {
-    using RecordReference = typename RecordIterator<T, SwapRanges, HeapValueType>::reference;
     std::stringstream ss;
     ss << "record" << "." << sizeof(T) << "." << SwapRanges << "." << HeapValueType;
     measure(ss.str(), 10'000'000, sizeof(T) * n, [&](auto *data, int nr, int nb) {
 	assert(sizeof(T) * n == nb);
 	RecordIterator<T, SwapRanges, HeapValueType> begin((T*)data, nb / sizeof(T));
 	RecordIterator<T, SwapRanges, HeapValueType> end(begin + nr);
-	std::sort(begin, end, [](RecordReference a, RecordReference b) {
+	std::sort(begin, end, [](const auto& a, const auto& b) {
 	    return *a.data() < *b.data();
 	});
     });
