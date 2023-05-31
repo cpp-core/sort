@@ -7,7 +7,6 @@
 #include <iostream>
 #include <random>
 #include <vector>
-#include <fmt/format.h>
 #include "core/sort/record_iterator.h"
 
 using namespace core::sort;
@@ -17,7 +16,7 @@ void output_records(const std::vector<int>& data, int nrows, int ncols) {
     for (auto i = 0; i < nrows; ++i) {
 	const int *row = &data[i * ncols];
 	for (auto j = 0; j < ncols; ++j)
-	    cout << fmt::format("{:2d}", row[j]) << " ";
+	    cout << row[j] << " ";
 	cout << endl;
     }
 }

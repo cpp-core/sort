@@ -4,7 +4,6 @@
 #include <span>
 #include <stdlib.h>
 #include "core/util/tool.h"
-#include "core/chrono/stopwatch.h"
 #include "core/sort/bitonic.h"
 #include "core/sort/is_sorted.h"
 #include "core/sort/fixed_sort.h"
@@ -16,6 +15,7 @@
 #include "core/sort/radix_msb_sort.h"
 #include "core/sort/std_sort_index.h"
 #include "core/sort/std_sort_pointer.h"
+#include "core/timer/timer.h"
 
 #if defined(__APPLE__) && defined(__MACH__)
 #define MACOSX 1
@@ -25,11 +25,11 @@ namespace core::sort {
 
 template<class Units, class Work, class Check>
 size_t measure_sort_indirect(std::string_view desc, Work&& work, Check&& check) {
-    chron::StopWatch timer;
-    auto result = work();
-    if (not check(result))
-	throw core::runtime_error("{} failed correctness check", desc);
-    return timer.elapsed_duration<Units>().count();
+    return timer::Timer().run(1, [&] {
+	auto result = work();
+	if (not check(result))
+	    throw core::runtime_error("{} failed correctness check", desc);
+    }).elapsed().count();
 }
 
 template<class Units, class Work, class Check>
@@ -41,11 +41,11 @@ void measure_sort_indirect(std::ostream& os, std::string_view desc, Work&& work,
 
 template<class Units, class Work, class Check>
 size_t measure_sort(std::string_view desc, Work&& work, Check&& check) {
-    chron::StopWatch timer;
-    work();
-    if (not check())
-	throw core::runtime_error("{} failed correctness check", desc);
-    return timer.elapsed_duration<Units>().count();
+    return timer::Timer().run(1, [&] {
+	work();
+	if (not check())
+	    throw core::runtime_error("{} failed correctness check", desc);
+    }).elapsed().count();
 }
 
 template<class Units, class Work, class Check>
@@ -93,10 +93,11 @@ int tool_main(int argc, const char *argv[]) {
 
     using Units = std::chrono::milliseconds;
     
-    chron::StopWatch timer;
+    core::timer::Timer<std::chrono::milliseconds> timer;
+    timer.start();
     Frame frame{number_rows, bytes_per_row};
     if (verbose) {
-	auto millis = timer.elapsed_duration<Units>().count();
+	auto millis = timer.elapsed().count();
 	cout << fmt::format("dataset created: {}ms", millis) << endl;
     }
 

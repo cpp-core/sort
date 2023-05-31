@@ -45,6 +45,20 @@ if(PROJECT_NAME STREQUAL CMAKE_PROJECT_NAME)
   #
   make_submodule_pull_target()
 
+  # Setup compilation parameters
+  #
+  set(CMAKE_CXX_STANDARD 23)
+  set(CMAKE_CXX_STANDARD_REQUIRED ON)
+  set(CMAKE_CXX_EXTENSIONS OFF)
+  
+  add_compile_options(-Wall)
+  add_compile_options(-g)
+  add_compile_options(-O)
+  
+  # add_compile_options(-fno-omit-frame-pointer)
+  # add_compile_options(-fsanitize=address)
+  # add_link_options(-fsanitize=address)
+
 else()
   option(SORT_TEST "Generate the tests." OFF)
   option(SORT_DOCS "Generate the docs." OFF)
@@ -62,29 +76,10 @@ message("-- sort: Install prefix: ${CMAKE_INSTALL_PREFIX}")
 message("-- sort: test ${SORT_TEST}")
 message("-- sort: docs ${SORT_DOCS}")
 
-# Setup compilation before adding dependencies
-#
-set(CMAKE_CXX_STANDARD 23)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
-
-add_compile_options(-Wall)
-add_compile_options(-g)
-add_compile_options(-O)
-
-add_compile_options(-stdlib=libc++)
-add_link_options(-stdlib=libc++)
-
-# add_compile_options(-fno-omit-frame-pointer)
-# add_compile_options(-fsanitize=address)
-# add_link_options(-fsanitize=address)
-
 # Add our dependencies
 #
-add_stream()
-add_fp()
 add_util()
-add_chrono()
+add_timer()
 
 # Build the library
 #
@@ -116,7 +111,7 @@ file(GLOB_RECURSE PUBLIC_INCLUDE_FILES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} incl
 target_sources(sort INTERFACE FILE_SET HEADERS BASE_DIRS include FILES ${PUBLIC_INCLUDE_FILES})
 
 target_include_directories(sort PUBLIC ${GMP_INCLUDE_DIRS})
-target_link_libraries(sort PUBLIC stream::stream fp::fp util::util chrono::chrono)
+target_link_libraries(sort PUBLIC util::util timer::timer)
 
 foreach(prog
     example0
@@ -137,7 +132,7 @@ endif()
 
 # Optionally configure the documentation
 #
-# if(FP_DOCS)
+# if(SORT_DOCS)
 #   add_subdirectory(docs)
 # endif()
 
