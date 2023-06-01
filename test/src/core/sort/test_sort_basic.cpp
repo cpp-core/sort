@@ -4,7 +4,7 @@
 #include <random>
 #include <vector>
 #include <gtest/gtest.h>
-#include "core/record/record.h"
+#include "core/record/iterator.h"
 
 using namespace core;
 

@@ -7,7 +7,7 @@
 #include <iostream>
 #include <random>
 #include <sstream>
-#include "core/record/record.h"
+#include "core/record/iterator.h"
 #include "core/timer/timer.h"
 
 using namespace core;
