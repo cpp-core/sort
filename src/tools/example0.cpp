@@ -7,9 +7,9 @@
 #include <iostream>
 #include <random>
 #include <vector>
-#include "core/sort/record_iterator.h"
+#include "core/record/record.h"
 
-using namespace core::sort;
+using namespace core;
 using std::cout, std::endl;
 
 void output_records(const std::vector<int>& data, int nrows, int ncols) {
@@ -30,13 +30,13 @@ int main(int argc, const char *argv[]) {
     output_records(data, nrows, ncols);
 
     // Shuffle the records
-    std::shuffle(begin_record(data, ncols), end_record(data, ncols), std::mt19937_64{});
+    std::shuffle(record::begin(data, ncols), record::end(data, ncols), std::mt19937_64{});
     cout << endl << "shuffled: " << endl;
     output_records(data, nrows, ncols);
     
     // Sort the records
-    RecordIterator<int, false, true> begin(data.data(), ncols);
-    RecordIterator<int, false, true> end(begin + nrows);
+    record::Iterator begin(data.data(), ncols);
+    record::Iterator end(begin + nrows);
     std::sort(begin, end,
 	      [](const int *a, const int *b) {
 		  return a[0] < b[0];

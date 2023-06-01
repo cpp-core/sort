@@ -79,6 +79,7 @@ message("-- sort: docs ${SORT_DOCS}")
 # Add our dependencies
 #
 add_util()
+add_record()
 add_timer()
 
 # Build the library
@@ -111,7 +112,7 @@ file(GLOB_RECURSE PUBLIC_INCLUDE_FILES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} incl
 target_sources(sort INTERFACE FILE_SET HEADERS BASE_DIRS include FILES ${PUBLIC_INCLUDE_FILES})
 
 target_include_directories(sort PUBLIC ${GMP_INCLUDE_DIRS})
-target_link_libraries(sort PUBLIC util::util timer::timer)
+target_link_libraries(sort PUBLIC util::util record::record timer::timer)
 
 foreach(prog
     example0

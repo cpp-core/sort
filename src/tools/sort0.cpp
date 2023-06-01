@@ -7,7 +7,7 @@
 #include <iostream>
 #include <random>
 #include <sstream>
-#include "core/sort/record_iterator.h"
+#include "core/record/record.h"
 #include "core/timer/timer.h"
 
 using namespace core;
@@ -28,7 +28,7 @@ void measure(std::string_view desc, size_t nr, size_t nb, Work&& work) {
     cout << desc << " " << nr << " x " << nb << " : " << ms << " ms" << endl;
     
     uint64_t last_value{};
-    for (auto iter = sort::begin_record(data, nb); iter != sort::end_record(data, nb); ++iter) {
+    for (auto iter = record::begin(data, nb); iter != record::end(data, nb); ++iter) {
 	auto a = iter.data();
 	auto val = *(uint64_t*)a;
 	assert(last_value <= val);
@@ -110,8 +110,8 @@ void measure_record(int n) {
     ss << "record" << "." << sizeof(T) << "." << SwapRanges << "." << HeapValueType;
     measure(ss.str(), 1'000'000, sizeof(T) * n, [&](auto *data, int nr, int nb) {
 	assert(sizeof(T) * n == nb);
-	sort::RecordIterator<T, SwapRanges, HeapValueType> begin((T*)data, nb / sizeof(T));
-	sort::RecordIterator<T, SwapRanges, HeapValueType> end(begin + nr);
+	record::Iterator<T, SwapRanges, HeapValueType> begin((T*)data, nb / sizeof(T));
+	record::Iterator<T, SwapRanges, HeapValueType> end(begin + nr);
 	std::sort(begin, end, [](const auto& a, const auto& b) {
 	    return *a.data() < *b.data();
 	});

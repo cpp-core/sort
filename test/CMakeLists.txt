@@ -3,7 +3,7 @@ cmake_minimum_required (VERSION 3.24 FATAL_ERROR)
 find_package(Threads REQUIRED)
 
 set(TESTS
-  sort/record_iterator
+  sort/basic
   )
 
 set(LIBRARIES
