@@ -12,6 +12,8 @@
 #include "core/timer/timer.h"
 
 int tool_main(int argc, const char *argv[]) {
+    size_t nworkers = argc < 2 ? 2 : atoi(argv[1]);
+    
     int nrecords = 100'000'000;
     std::vector<uint64_t> data(nrecords);
     
@@ -19,7 +21,6 @@ int tool_main(int argc, const char *argv[]) {
     std::mt19937_64 rng;
     std::generate(data.begin(), data.end(), [&]() { return d(rng); });
 
-    size_t nworkers = 2;
     std::vector<std::thread> workers;
     
     core::timer::Timer timer;
@@ -33,13 +34,15 @@ int tool_main(int argc, const char *argv[]) {
 	sample.push_back(data[i]);
     std::sort(sample.begin(), sample.end());
 
+    std::vector<uint64_t> result(data.size());
     size_t bucketsize = data.size() / nworkers;
     auto pivot = sample[sample.size() / 2];
     std::latch wait_here(nworkers);
-    for (auto i = 0; i < nworkers; ++i) {
-	auto sdx = i * bucketsize;
-	auto edx = std::min((i + 1) * bucketsize, data.size());
-	workers.emplace_back([&,sdx,edx,pivot]() {
+    for (auto wid = 0; wid < nworkers; ++wid) {
+	workers.emplace_back([&,wid,pivot]() {
+	    size_t sdx = wid * bucketsize;
+	    size_t edx = std::min((wid + 1) * bucketsize, data.size());
+	    
 	    auto ldx = sdx - 1;
 	    auto rdx = edx;
 	    while (true) {
@@ -59,22 +62,32 @@ int tool_main(int argc, const char *argv[]) {
 	    std::sort(&data[rdx], &data[edx]);
 
 	    wait_here.arrive_and_wait();
+
+	    auto end_rdx = std::min(edx + bucketsize, data.size());
+	    if (wid % 2 == 0) {
+		size_t idx{sdx}, ldx{sdx}, rdx{edx};
+		while (idx < edx and ldx < edx and rdx < end_rdx) {
+		    if (data[ldx] < data[rdx])
+			result[idx++] = data[ldx++];
+		    else
+			result[idx++] = data[rdx++];
+		}
+	    } else {
+		ssize_t idx(edx - 1);
+		ssize_t rdx{idx};
+		ssize_t ldx(sdx - 1);
+		while (idx >= sdx and ldx >= sdx - bucketsize and rdx >= sdx) {
+		    if (data[ldx] > data[rdx])
+			result[idx--] = data[ldx--];
+		    else
+			result[idx--] = data[rdx--];
+		}
+	    }
 	});
     }
 
     for (auto& worker : workers)
 	worker.join();
-
-    std::vector<uint64_t> result(data.size());
-    size_t idx{}, ldx{}, rdx{bucketsize};
-    while (ldx < bucketsize and rdx < data.size()) {
-	if (data[ldx] < data[rdx])
-	    result[idx++] = data[ldx++];
-	else
-	    result[idx++] = data[rdx++];
-    }
-    std::copy(&data[ldx], &data[bucketsize], &result[idx]);
-    std::copy(&data[rdx], &data[data.size()], &result[idx]);
     std::swap(data, result);
 
     timer.stop();

@@ -119,6 +119,8 @@ foreach(prog
     sort0
     sort1
     sort2
+    sort3
+    sort4
     )
   add_executable(${prog} src/tools/${prog}.cpp)
   target_link_libraries(${prog} sort::sort)
