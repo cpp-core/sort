@@ -78,9 +78,9 @@ message("-- sort: docs ${SORT_DOCS}")
 
 # Add our dependencies
 #
-add_util()
 add_record()
 add_timer()
+find_package(Threads REQUIRED)
 
 # Build the library
 #
@@ -112,7 +112,7 @@ file(GLOB_RECURSE PUBLIC_INCLUDE_FILES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} incl
 target_sources(sort INTERFACE FILE_SET HEADERS BASE_DIRS include FILES ${PUBLIC_INCLUDE_FILES})
 
 target_include_directories(sort PUBLIC ${GMP_INCLUDE_DIRS})
-target_link_libraries(sort PUBLIC util::util record::record timer::timer)
+target_link_libraries(sort PUBLIC record::record timer::timer)
 
 foreach(prog
     example0
@@ -123,7 +123,7 @@ foreach(prog
     sort4
     )
   add_executable(${prog} src/tools/${prog}.cpp)
-  target_link_libraries(${prog} sort::sort)
+  target_link_libraries(${prog} sort::sort Threads::Threads)
 endforeach()
 
 # Optionally configure the tests

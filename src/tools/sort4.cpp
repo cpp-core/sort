@@ -5,13 +5,15 @@
 #include <cassert>
 
 #include <algorithm>
+#include <iostream>
 #include <random>
 #include <thread>
 #include <latch>
-#include "core/util/tool.h"
 #include "core/timer/timer.h"
 
-int tool_main(int argc, const char *argv[]) {
+using std::cout, std::endl;
+
+int main(int argc, const char *argv[]) {
     size_t nworkers = argc < 2 ? 2 : atoi(argv[1]);
     
     int nrecords = 100'000'000;
