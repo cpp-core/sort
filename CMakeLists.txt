@@ -117,7 +117,7 @@ target_link_libraries(sort PUBLIC record::record timer::timer)
 foreach(prog
     example0
     sort0
-    sort1
+    # sort1
     sort2
     sort3
     sort4

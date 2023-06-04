@@ -5,13 +5,15 @@
 #include <cassert>
 
 #include <algorithm>
+#include <iostream>
 #include <random>
 #include <thread>
 #include <latch>
-#include "core/util/tool.h"
 #include "core/timer/timer.h"
 
-int tool_main(int argc, const char *argv[]) {
+using std::cout, std::endl;
+
+int main(int argc, const char *argv[]) {
     int nrecords = 100'000'000;
     std::vector<uint64_t> data(nrecords);
     
