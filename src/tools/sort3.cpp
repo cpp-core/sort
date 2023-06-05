@@ -8,13 +8,17 @@
 #include <iostream>
 #include <random>
 #include <thread>
-#include <latch>
+#include <barrier>
 #include "core/timer/timer.h"
 
 using std::cout, std::endl;
 
 int main(int argc, const char *argv[]) {
-    size_t nworkers = argc < 2 ? 2 : atoi(argv[1]);
+    size_t nth = argc < 2 ? 2 : atoi(argv[1]);
+    if (std::popcount(nth) != 1) {
+	cout << "Number of threads must be power of two: " << nth << endl;
+	return -1;
+    }
     
     int nrecords = 100'000'000;
     std::vector<uint64_t> data(nrecords);
@@ -28,61 +32,44 @@ int main(int argc, const char *argv[]) {
     core::timer::Timer timer;
     timer.start();
 
-    // std::sort(data.begin(), data.end());
-    
-    std::vector<uint64_t> sample;
-    constexpr size_t blocksize = 64;
-    for (auto i = 0; i < data.size(); i += blocksize)
-	sample.push_back(data[i]);
-    std::sort(sample.begin(), sample.end());
-
     std::vector<uint64_t> result(data.size());
-    size_t bucketsize = data.size() / nworkers;
-    auto pivot = sample[sample.size() / 2];
-    std::latch wait_here(nworkers);
-    for (auto wid = 0; wid < nworkers; ++wid) {
-	workers.emplace_back([&,wid,pivot]() {
-	    size_t sdx = wid * bucketsize;
-	    size_t edx = std::min((wid + 1) * bucketsize, data.size());
-	    
-	    auto ldx = sdx - 1;
-	    auto rdx = edx;
-	    while (true) {
-		do ++ldx;
-		while (data[ldx] < pivot);
+    size_t bucketsize = data.size() / nth;
+    std::barrier sync(nth);
+    for (auto tid = 0; tid < nth; ++tid) {
+	workers.emplace_back([&,tid]() {
+	    size_t sdx = tid * bucketsize;
+	    size_t edx = std::min(sdx + bucketsize, data.size());
+	    std::sort(&data[sdx], &data[edx]);
 
-		do --rdx;
-		while (pivot < data[rdx]);
+	    for (size_t span = 2; span <= nth; span *= 2) {
+		sync.arrive_and_wait();
+		size_t gid = tid bitand ~(span - 1);
+		size_t sdx = gid * bucketsize;
+		size_t mdx = sdx + (span / 2) * bucketsize;
+		size_t edx = std::min(sdx + span * bucketsize, data.size());
 
-		if (ldx >= rdx)
-		    break;
-		std::swap(data[ldx], data[rdx]);
-	    }
-	    while (rdx < edx and data[rdx] < pivot)
-		++rdx;
-	    std::sort(&data[sdx], &data[rdx]);
-	    std::sort(&data[rdx], &data[edx]);
-
-	    wait_here.arrive_and_wait();
-
-	    auto end_rdx = std::min(edx + bucketsize, data.size());
-	    if (wid % 2 == 0) {
-		size_t idx{sdx}, ldx{sdx}, rdx{edx};
-		while (idx < edx and ldx < edx and rdx < end_rdx) {
-		    if (data[ldx] < data[rdx])
-			result[idx++] = data[ldx++];
-		    else
-			result[idx++] = data[rdx++];
-		}
-	    } else {
-		ssize_t idx(edx - 1);
-		ssize_t rdx{idx};
-		ssize_t ldx(sdx - 1);
-		while (idx >= sdx and ldx >= sdx - bucketsize and rdx >= sdx) {
-		    if (data[ldx] > data[rdx])
-			result[idx--] = data[ldx--];
-		    else
-			result[idx--] = data[rdx--];
+		cout << "t: " << tid << " " << gid << " " << sdx << " " << mdx << " " << edx << endl;
+		
+		if (tid % span == 0) {
+		    size_t idx{sdx}, ldx{sdx}, rdx{mdx};
+		    cout << "l: " << idx << " " << ldx << " " << rdx << endl;
+		    while (idx < mdx and ldx < mdx and rdx < edx) {
+			if (data[ldx] < data[rdx])
+			    result[idx++] = data[ldx++];
+			else
+			    result[idx++] = data[rdx++];
+		    }
+		} else if (tid % span == 1) {
+		    ssize_t idx(edx - 1);
+		    ssize_t rdx{idx};
+		    ssize_t ldx(mdx - 1);
+		    cout << "r: " << idx << " " << ldx << " " << rdx << endl;
+		    while (idx >= mdx and ldx >= sdx and rdx >= mdx) {
+			if (data[ldx] > data[rdx])
+			    result[idx--] = data[ldx--];
+			else
+			    result[idx--] = data[rdx--];
+		    }
 		}
 	    }
 	});
@@ -98,6 +85,9 @@ int main(int argc, const char *argv[]) {
     for (auto i = 1; i < data.size(); ++i)
 	if (data[i-1] > data[i])
 	    cout << i << " " << data[i-1] << " " << data[i]  << endl;
+
+    for (auto i = 49'999'990; i < 50'000'010; ++i)
+	cout << data[i] << endl;
     
     return 0;
 }
