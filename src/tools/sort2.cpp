@@ -12,6 +12,24 @@
 using std::cout, std::endl;
 using namespace core;
 
+template<class T, class Compare>
+void bitonic_sort(T *data, size_t n, Compare compare) {
+    for (auto k = 2; k <= n; k *= 2) {
+	for (auto j = k/2; j > 0; j /= 2) {
+	    for (auto i = 0; i < n; ++i) {
+		auto l = i xor j;
+		if (l > i) {
+		    bool mask = i bitand k;
+		    bool cmp = compare(data[i], data[l]);
+		    if (not (mask ^ cmp))
+			std::swap(data[i], data[l]);
+		}
+	    }
+	}
+    }
+}
+
+
 int main(int argc, const char *argv[]) {
     size_t nth = argc < 2 ? 2 : atoi(argv[1]);
     size_t nrecords = argc < 3 ? 100'000'000 : atoi(argv[2]);
@@ -24,32 +42,25 @@ int main(int argc, const char *argv[]) {
     timer::Timer timer;
     timer.start();
 
-    auto begin = data.begin(), end = data.end();
-    size_t ndata = end - begin;
-    size_t bucketsize = ndata / nth;
+    bitonic_sort(&data[0], data.size(), std::less{});
 
-    std::barrier sync(nth);
-    std::vector<std::thread> threads;
-    for (auto tid = 0; tid < nth; ++tid) {
-	threads.emplace_back([&,tid]() {
-	    size_t sdx = tid * bucketsize;
-	    size_t edx = std::min(sdx + bucketsize, ndata);
-	    std::sort(begin + sdx, begin + edx);
+    // auto begin = data.begin(), end = data.end();
+    // size_t ndata = end - begin;
+    // size_t bucketsize = ndata / nth;
 
-	});
-    }
+    // std::barrier sync(nth);
+    // std::vector<std::thread> threads;
+    // for (auto tid = 0; tid < nth; ++tid) {
+    // 	threads.emplace_back([&,tid]() {
+    // 	    size_t sdx = tid * bucketsize;
+    // 	    size_t edx = std::min(sdx + bucketsize, ndata);
+    // 	    std::sort(begin + sdx, begin + edx);
+    // 	});
+    // }
 
-    for (auto& thread : threads)
-	if (thread.joinable())
-	    thread.join();
-
-    size_t k = ndata / 2 + ndata % 2;
-    while (k > 0) {
-	for (auto i = 0; i < ndata - k; ++i)
-	    if (data[i + k] < data[i])
-		std::swap(data[i + k], data[i]);
-	k = (k == 1) ? 0 : (k / 2 + k % 2);
-    }
+    // for (auto& thread : threads)
+    // 	if (thread.joinable())
+    // 	    thread.join();
 
     timer.stop();
     
