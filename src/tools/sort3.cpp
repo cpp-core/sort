@@ -1,9 +1,6 @@
 // Copyright (C) 2022, 2023 by Mark Melton
 //
 
-#undef NDEBUG
-#include <cassert>
-
 #include <iostream>
 #include <random>
 #include "core/timer/timer.h"
