@@ -31,7 +31,7 @@ void bitonic_sort(T *data, size_t n, Compare compare) {
 
 
 int main(int argc, const char *argv[]) {
-    size_t nth = argc < 2 ? 2 : atoi(argv[1]);
+    // size_t nth = argc < 2 ? 2 : atoi(argv[1]);
     size_t nrecords = argc < 3 ? 100'000'000 : atoi(argv[2]);
     
     std::uniform_int_distribution<uint64_t> d;
