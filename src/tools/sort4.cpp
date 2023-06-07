@@ -8,13 +8,14 @@
 
 #include <array>
 #include <latch>
+#include <boost/sort/sort.hpp>
 
 namespace core::sort {
 
 template<class Iter, class Compare, size_t SampleBlock = 64>
 void psort_sample_block(size_t nth, Iter begin, Iter end, Compare cmp) {
     if (nth == 1) {
-	std::sort(begin, end, cmp);
+	boost::sort::pdqsort(begin, end, cmp);
 	return;
     }
 
@@ -38,7 +39,10 @@ void psort_sample_block(size_t nth, Iter begin, Iter end, Compare cmp) {
     for (auto tid = 0; tid < nth; ++tid) {
 	threads.emplace_back([&,tid]() {
 	    std::array<unsigned char, BlockSize> offset;
+	    
 	    std::vector<value_type> tmp_data;
+	    tmp_data.reserve(ndata / nth);
+	    
 	    auto min_value = tid == 0 ? 0 : pivots[tid - 1];
 	    auto max_value = tid == nth - 1 ? uint64_t(-1) : pivots[tid];
 
@@ -66,11 +70,7 @@ void psort_sample_block(size_t nth, Iter begin, Iter end, Compare cmp) {
 		++ptr;
 	    }
 	    
-	    // for (auto i = 0; i < ndata; ++i)
-	    // 	if (begin[i] >= min_value and begin[i] < max_value)
-	    // 	    tmp_data.push_back(begin[i]);
-	    
-	    std::sort(tmp_data.begin(), tmp_data.end(), cmp);
+	    boost::sort::pdqsort(tmp_data.begin(), tmp_data.end(), cmp);
 	    prefix[tid] = tmp_data.size();
 	    
 	    sync_copy.arrive_and_wait();

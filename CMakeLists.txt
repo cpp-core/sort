@@ -125,6 +125,7 @@ foreach(prog
     sort3
     sort4
     sort5
+    sort6
     )
   add_executable(${prog} src/tools/${prog}.cpp)
   target_link_libraries(${prog} sort::sort Threads::Threads boost_sort)
