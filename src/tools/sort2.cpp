@@ -29,10 +29,24 @@ void bitonic_sort(T *data, size_t n, Compare compare) {
     }
 }
 
+template<class Iter>
+void bitonic_split(Iter begin, Iter end) {
+    auto left_iter = begin;
+    auto right_iter = begin + (end - begin) / 2;
+    while (right_iter < end and *left_iter < *right_iter) {
+	++left_iter;
+	++right_iter;
+    }
+    
+    if (right_iter < end) {
+	size_t n = left_iter - begin;
+	std::swap(left_iter, left_iter + n, left_iter + n);
+    }
+}
+
 
 int main(int argc, const char *argv[]) {
-    // size_t nth = argc < 2 ? 2 : atoi(argv[1]);
-    size_t nrecords = argc < 3 ? 100'000'000 : atoi(argv[2]);
+    size_t nrecords = argc < 2 ? (32 * 1024 * 1024) : atoi(argv[1]);
     
     std::uniform_int_distribution<uint64_t> d;
     std::mt19937_64 rng;
@@ -42,33 +56,29 @@ int main(int argc, const char *argv[]) {
     timer::Timer timer;
     timer.start();
 
-    bitonic_sort(&data[0], data.size(), std::less{});
+    std::sort(data.begin(), data.begin() + nrecords / 2);
+    std::sort(data.begin() + nrecords / 2, data.end());
 
-    // auto begin = data.begin(), end = data.end();
-    // size_t ndata = end - begin;
-    // size_t bucketsize = ndata / nth;
+    auto left = &data[0], right = &data.back(), middle = &data[0] + nrecords / 2;
+    while (left < right and *left < *right) {
+	++left;
+	--right;
+    }
+    std::swap_ranges(left, middle, middle);
 
-    // std::barrier sync(nth);
-    // std::vector<std::thread> threads;
-    // for (auto tid = 0; tid < nth; ++tid) {
-    // 	threads.emplace_back([&,tid]() {
-    // 	    size_t sdx = tid * bucketsize;
-    // 	    size_t edx = std::min(sdx + bucketsize, ndata);
-    // 	    std::sort(begin + sdx, begin + edx);
-    // 	});
-    // }
-
-    // for (auto& thread : threads)
-    // 	if (thread.joinable())
-    // 	    thread.join();
+    // auto left_max = std::accumulate(&data[0], middle, uint64_t{},
+    // 				    [](auto a, auto b) { return std::max(a, b); });
+    // auto right_min = std::accumulate(middle, &data[nrecords], uint64_t(-1),
+    // 				     [](auto a, auto b) { return std::min(a, b); });
 
     timer.stop();
-    
+    // cout << left_max << endl;
+    // cout << right_min << endl;    
     cout << (1e-9 * timer.elapsed().count()) << endl;
     
-    for (auto i = 1; i < data.size(); ++i)
-	if (data[i-1] > data[i])
-	    cout << i << " " << data[i-1] << " " << data[i]  << endl;
+    // for (auto i = 1; i < data.size(); ++i)
+    // 	if (data[i-1] > data[i])
+    // 	    cout << i << " " << data[i-1] << " " << data[i]  << endl;
     
     return 0;
 }

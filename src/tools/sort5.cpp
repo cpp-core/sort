@@ -67,12 +67,12 @@ int main(int argc, const char *argv[]) {
     measure("std::sort", nrecords, [](auto begin, auto end) {
 	std::sort(begin, end);
     });
-    for (auto k = 1; k <= 16; k *= 2)
-	measure_record("std::sort", k, nrecords, [](auto begin, auto end) {
-	    std::sort(begin, end, [](const uint64_t *a, const uint64_t *b) {
-		return a[0] < b[0];
-	    });
-	});
+    // for (auto k = 1; k <= 16; k *= 2)
+    // 	measure_record("std::sort", k, nrecords, [](auto begin, auto end) {
+    // 	    std::sort(begin, end, [](const uint64_t *a, const uint64_t *b) {
+    // 		return a[0] < b[0];
+    // 	    });
+    // 	});
     
     measure("boost::sort::flat_stable_sort", nrecords, [](auto begin, auto end) {
 	boost::sort::flat_stable_sort(begin, end);
@@ -81,12 +81,12 @@ int main(int argc, const char *argv[]) {
     measure("boost::sort::pdqsort", nrecords, [](auto begin, auto end) {
 	boost::sort::pdqsort(begin, end);
     });
-    for (auto k = 1; k <= 16; k *= 2)
-	measure_record("boost::sort::pdqsort", k, nrecords, [](auto begin, auto end) {
-	    boost::sort::pdqsort(begin, end, [](const uint64_t *a, const uint64_t *b) {
-		return a[0] < b[0];
-	    });
-	});
+    // for (auto k = 1; k <= 16; k *= 2)
+    // 	measure_record("boost::sort::pdqsort", k, nrecords, [](auto begin, auto end) {
+    // 	    boost::sort::pdqsort(begin, end, [](const uint64_t *a, const uint64_t *b) {
+    // 		return a[0] < b[0];
+    // 	    });
+    // 	});
     
     measure("boost::sort::spinsort", nrecords, [](auto begin, auto end) {
 	boost::sort::spinsort(begin, end);
@@ -111,10 +111,22 @@ int main(int argc, const char *argv[]) {
     measure("boost::sort::sample_sort", nrecords, [](auto begin, auto end) {
 	boost::sort::sample_sort(begin, end);
     });
+    // for (auto k = 1; k <= 16; k *= 2)
+    // 	measure_record("boost::sort::sample_sort", k, nrecords, [](auto begin, auto end) {
+    // 	    boost::sort::sample_sort(begin, end, [](const uint64_t *a, const uint64_t *b) {
+    // 		return a[0] < b[0];
+    // 	    });
+    // 	});
     
     measure("boost::sort::parallel_stable_sort", nrecords, [](auto begin, auto end) {
 	boost::sort::parallel_stable_sort(begin, end);
     });
+    // for (auto k = 1; k <= 16; k *= 2)
+    // 	measure_record("boost::sort::parallel_stable_sort", k, nrecords, [](auto begin, auto end) {
+    // 	    boost::sort::parallel_stable_sort(begin, end, [](const uint64_t *a, const uint64_t *b) {
+    // 		return a[0] < b[0];
+    // 	    });
+    // 	});
     
     return 0;
 }
