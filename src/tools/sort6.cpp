@@ -1,16 +1,22 @@
 // Copyright (C) 2022, 2023 by Mark Melton
 //
 
+#undef NDEBUG
+#include <cassert>
+
 #include <iostream>
 #include <random>
 #include "core/timer/timer.h"
 
 #include <algorithm>
+#include <array>
 namespace core::sort {
 
 inline namespace qsort_detail {
-inline constexpr auto InsertionSortThreshold = 24;
-inline constexpr auto PseudoMedianThreshold = 1024 * 1024 * 1024;
+       inline constexpr size_t InsertionSortThreshold = 24;
+       inline constexpr size_t PseudoMedianThreshold = 1024 * 1024 * 1024;
+       inline constexpr size_t CacheLineSize = 64;
+       inline constexpr size_t BlockSize = 64;
 };
 
 template<class Iter, class Compare>
@@ -44,18 +50,18 @@ void move_pivot_to_begin(Iter begin, Iter end, Compare compare) {
 template<class Iter, class Compare>
 void insertion_sort(Iter begin, Iter end, Compare compare) {
     using T = typename Iter::value_type;
-    
-    if (begin == end)
+
+    if (end - begin < 2)
 	return;
 
-    for (auto iter = begin + 1; iter != end; ++iter) {
+    for (auto iter = begin + 1; iter < end; ++iter) {
 	auto a = iter, b = iter - 1;
 	if (compare(*a, *b)) {
 	    T tmp = std::move(*a);
 
 	    do {
 		*a-- = std::move(*b);
-	    } while (compare(tmp, *--b));
+	    } while (a != begin and compare(tmp, *--b));
 
 	    *a = std::move(tmp);
 	}
@@ -63,10 +69,11 @@ void insertion_sort(Iter begin, Iter end, Compare compare) {
 }
 
 template<class Iter, class Compare>
-auto partition(Iter begin, Iter end, Compare compare) {
+auto partition_basic(Iter begin, Iter end, Compare compare) {
+    using std::swap;
     using T = typename Iter::value_type;
+    
     T pivot = std::move(*begin);
-
     Iter left = begin;
     Iter right = end;
 
@@ -74,10 +81,65 @@ auto partition(Iter begin, Iter end, Compare compare) {
     while (left < right and not compare(*--right, pivot));
 
     while (left < right) {
-	using std::swap;
 	swap(*left, *right);
 	while (compare(*++left, pivot));
 	while (not compare(*--right, pivot));
+    }
+
+    Iter piter = left - 1;
+    *begin = std::move(*piter);
+    *piter = std::move(pivot);
+
+    return piter;
+}
+
+template<class Iter, class Compare>
+auto partition(Iter begin, Iter end, Compare compare) {
+    using std::swap;
+    using T = typename Iter::value_type;
+    
+    T pivot = std::move(*begin);
+    Iter left = begin + 1;
+    Iter right = end;
+
+    alignas(CacheLineSize) std::array<unsigned char, BlockSize> left_offsets;
+    alignas(CacheLineSize) std::array<unsigned char, BlockSize> right_offsets;
+    while (right - left > 2 * BlockSize) {
+	Iter l = left;
+	size_t ldx{};
+	for (auto i = 0; i < BlockSize; ++i) {
+	    left_offsets[ldx] = i;
+	    ldx += not compare(*l++, pivot);
+	}
+
+	Iter r = right;
+	size_t rdx{};
+	for (auto i = 0; i < BlockSize; ++i) {
+	    right_offsets[rdx] = i;
+	    rdx += compare(*--r, pivot);
+	}
+
+	auto n = std::min(ldx, rdx);
+	for (auto i = 0; i < n; ++i)
+	    swap(left[left_offsets[i]], right[-right_offsets[i] - 1]);
+
+	ldx -= n;
+	rdx -= n;
+
+	left += (ldx == 0 ? BlockSize : left_offsets[n]);
+	right -= (rdx == 0 ? BlockSize : right_offsets[n]);
+    }
+
+    if (left < right) {
+	while (compare(*left, pivot))
+	    ++left;
+	while (left < right and not compare(*--right, pivot));
+	
+	while (left < right) {
+	    swap(*left, *right);
+	    while (compare(*++left, pivot));
+	    while (not compare(*--right, pivot));
+	}
     }
 
     Iter piter = left - 1;
@@ -98,8 +160,8 @@ void qsort(Iter begin, Iter end, Compare compare) {
 	}
 
 	move_pivot_to_begin(begin, end, compare);
-
 	auto piter = core::sort::partition(begin, end, compare);
+	
 	qsort(begin, piter, compare);
 	begin = piter + 1;
     }
@@ -127,7 +189,7 @@ int main(int argc, const char *argv[]) {
 
     for (auto i = 1; i < data.size(); ++i)
 	if (data[i-1] > data[i])
-	    cout << i << " " << data[i-1] << " " << data[i]  << endl;
+	    cout << "not sorted : " << i << " " << data[i-1] << " " << data[i]  << endl;
     
     return 0;
 }
