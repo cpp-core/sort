@@ -12,18 +12,6 @@
 #include <array>
 namespace core::sort {
 
-template<class Iter, class Compare>
-std::ostream& output_partition(std::ostream& os, Iter begin, Iter end,
-			       Iter piter, auto pivot, Compare compare) {
-    for (auto iter = begin; iter < end; ++iter) {
-	os << ((iter == piter) ? "-> " : "   ")
-	   << pivot << " "
-	   << compare(*iter, pivot) << " "
-	   << *iter << std::endl;
-    }
-    return os;
-}
-
 inline namespace qsort_detail {
        inline constexpr size_t InsertionSortThreshold = 24;
        inline constexpr size_t PseudoMedianThreshold = 128;
@@ -106,47 +94,151 @@ auto partition_basic(Iter begin, Iter end, Compare compare) {
 }
 
 template<class Iter, class Compare>
+auto partition0(Iter begin, Iter end, Compare compare) {
+    using std::swap;
+    using T = typename Iter::value_type;
+    
+    T pivot = std::move(*begin);
+    Iter liter = begin;
+    Iter riter = end;
+
+    alignas(CacheLineSize) std::array<unsigned char, BlockSize> loffsets;
+    alignas(CacheLineSize) std::array<unsigned char, BlockSize> roffsets;
+    size_t lcount{}, rcount{}, ldx{}, rdx{};
+    Iter lbase = liter + 1, rbase = riter - 1;
+    while (riter - liter > 1) {
+	size_t nspace = riter - liter - 1;
+	size_t nl = std::min(256 - ldx, BlockSize - lcount);
+	size_t nr = std::min(256 - rdx, BlockSize - rcount);
+
+	if (nl + nr > nspace) {
+	    auto& a = (nl < nr ? nl : nr);
+	    auto& b = (nl < nr ? nr : nl);
+	    a = std::min(a, nspace / 2);
+	    b = nspace - a;
+	}
+
+	auto ldx0 = ldx;
+	if (nl >= BlockSize) {
+	    for (auto i = 0; i < BlockSize;) {
+		loffsets[ldx % BlockSize] = i++; ldx += not compare(*++liter, pivot);
+		loffsets[ldx % BlockSize] = i++; ldx += not compare(*++liter, pivot);
+		loffsets[ldx % BlockSize] = i++; ldx += not compare(*++liter, pivot);
+		loffsets[ldx % BlockSize] = i++; ldx += not compare(*++liter, pivot);
+		loffsets[ldx % BlockSize] = i++; ldx += not compare(*++liter, pivot);
+		loffsets[ldx % BlockSize] = i++; ldx += not compare(*++liter, pivot);
+		loffsets[ldx % BlockSize] = i++; ldx += not compare(*++liter, pivot);
+		loffsets[ldx % BlockSize] = i++; ldx += not compare(*++liter, pivot);
+	    }
+	} else {
+	    for (auto i = 0; i < nl; ++i) {
+		loffsets[ldx % BlockSize] = i;
+		ldx += not compare(*++liter, pivot);
+	    }
+	}
+	lcount += ldx - ldx0;
+
+	auto rdx0 = rdx;
+	if (nr >= BlockSize) {
+	    for (auto i = 0; i < BlockSize;) {
+		roffsets[rdx % BlockSize] = i++; rdx += compare(*--riter, pivot);
+		roffsets[rdx % BlockSize] = i++; rdx += compare(*--riter, pivot);
+		roffsets[rdx % BlockSize] = i++; rdx += compare(*--riter, pivot);
+		roffsets[rdx % BlockSize] = i++; rdx += compare(*--riter, pivot);
+		roffsets[rdx % BlockSize] = i++; rdx += compare(*--riter, pivot);
+		roffsets[rdx % BlockSize] = i++; rdx += compare(*--riter, pivot);
+		roffsets[rdx % BlockSize] = i++; rdx += compare(*--riter, pivot);
+		roffsets[rdx % BlockSize] = i++; rdx += compare(*--riter, pivot);
+	    }
+	} else {
+	    for (auto i = 0; i < nr; ++i) {
+		roffsets[rdx % BlockSize] = i;
+		rdx += compare(*--riter, pivot);
+	    }
+	}
+	rcount += rdx - rdx0;
+
+	auto n = std::min(lcount, rcount);
+	auto l0 = (ldx + BlockSize - lcount) % BlockSize;
+	auto r0 = (rdx + BlockSize - rcount) % BlockSize;
+	for (auto i = 0; i < n; ++i) {
+	    auto lindex = (l0 + i) % BlockSize;
+	    auto rindex = (r0 + i) % BlockSize;
+	    std::iter_swap(lbase + loffsets[lindex], rbase - roffsets[rindex]);
+	}
+
+	lcount -= n;
+	rcount -= n;
+
+	if (lcount == 0) {
+	    ldx = 0;
+	}
+	if (rcount == 0) {
+	    rdx = 0;
+	}
+    }
+
+    if (ldx) {
+	while (ldx--)
+	    std::iter_swap(lbase + lptroff[ldx], --riter);
+	liter = riter - 1;
+    }
+
+    if (rdx) {
+	while (rdx--)
+	    std::iter_swap(rbase - rptroff[rdx], ++liter);
+	riter = liter + 1;
+    }
+
+    Iter piter = liter;
+    *begin = std::move(*piter);
+    *piter = std::move(pivot);
+
+    return piter;
+}
+
+template<class Iter, class Compare>
 auto partition(Iter begin, Iter end, Compare compare) {
     using std::swap;
     using T = typename Iter::value_type;
     
     T pivot = std::move(*begin);
-    Iter left = begin;
-    Iter right = end;
+    Iter liter = begin;
+    Iter riter = end;
 
-    alignas(CacheLineSize) std::array<unsigned char, BlockSize> left_offsets;
-    alignas(CacheLineSize) std::array<unsigned char, BlockSize> right_offsets;
-    unsigned char *lptroff = &left_offsets[0];
-    unsigned char *rptroff = &right_offsets[0];
+    alignas(CacheLineSize) std::array<unsigned char, BlockSize> loffsets;
+    alignas(CacheLineSize) std::array<unsigned char, BlockSize> roffsets;
+    unsigned char *lptroff = &loffsets[0];
+    unsigned char *rptroff = &roffsets[0];
     size_t ldx{}, rdx{};
-    Iter lbase = left + 1, rbase = right - 1;
-    while (right - left > 2 * BlockSize) {
+    Iter lbase = liter + 1, rbase = riter - 1;
+    while (riter - liter > 2 * BlockSize) {
 
 	if (ldx == 0) {
-	    lbase = left + 1;
+	    lbase = liter + 1;
 	    for (auto i = 0; i < BlockSize;) {
-		left_offsets[ldx] = i++; ldx += not compare(*++left, pivot);
-		left_offsets[ldx] = i++; ldx += not compare(*++left, pivot);
-		left_offsets[ldx] = i++; ldx += not compare(*++left, pivot);
-		left_offsets[ldx] = i++; ldx += not compare(*++left, pivot);
-		left_offsets[ldx] = i++; ldx += not compare(*++left, pivot);
-		left_offsets[ldx] = i++; ldx += not compare(*++left, pivot);
-		left_offsets[ldx] = i++; ldx += not compare(*++left, pivot);
-		left_offsets[ldx] = i++; ldx += not compare(*++left, pivot);
+		loffsets[ldx] = i++; ldx += not compare(*++liter, pivot);
+		loffsets[ldx] = i++; ldx += not compare(*++liter, pivot);
+		loffsets[ldx] = i++; ldx += not compare(*++liter, pivot);
+		loffsets[ldx] = i++; ldx += not compare(*++liter, pivot);
+		loffsets[ldx] = i++; ldx += not compare(*++liter, pivot);
+		loffsets[ldx] = i++; ldx += not compare(*++liter, pivot);
+		loffsets[ldx] = i++; ldx += not compare(*++liter, pivot);
+		loffsets[ldx] = i++; ldx += not compare(*++liter, pivot);
 	    }
 	}
 	
 	if (rdx == 0) {
-	    rbase = right - 1;
+	    rbase = riter - 1;
 	    for (auto i = 0; i < BlockSize;) {
-		right_offsets[rdx] = i++; rdx += compare(*--right, pivot);
-		right_offsets[rdx] = i++; rdx += compare(*--right, pivot);
-		right_offsets[rdx] = i++; rdx += compare(*--right, pivot);
-		right_offsets[rdx] = i++; rdx += compare(*--right, pivot);
-		right_offsets[rdx] = i++; rdx += compare(*--right, pivot);
-		right_offsets[rdx] = i++; rdx += compare(*--right, pivot);
-		right_offsets[rdx] = i++; rdx += compare(*--right, pivot);
-		right_offsets[rdx] = i++; rdx += compare(*--right, pivot);
+		roffsets[rdx] = i++; rdx += compare(*--riter, pivot);
+		roffsets[rdx] = i++; rdx += compare(*--riter, pivot);
+		roffsets[rdx] = i++; rdx += compare(*--riter, pivot);
+		roffsets[rdx] = i++; rdx += compare(*--riter, pivot);
+		roffsets[rdx] = i++; rdx += compare(*--riter, pivot);
+		roffsets[rdx] = i++; rdx += compare(*--riter, pivot);
+		roffsets[rdx] = i++; rdx += compare(*--riter, pivot);
+		roffsets[rdx] = i++; rdx += compare(*--riter, pivot);
 	    }
 	}
 
@@ -157,29 +249,29 @@ auto partition(Iter begin, Iter end, Compare compare) {
 	ldx -= n;
 	rdx -= n;
 
-	lptroff = (ldx == 0 ? &left_offsets[0] : lptroff + n);
-	rptroff = (rdx == 0 ? &right_offsets[0] : rptroff + n);
+	lptroff = (ldx == 0 ? &loffsets[0] : lptroff + n);
+	rptroff = (rdx == 0 ? &roffsets[0] : rptroff + n);
     }
     
-    while (right - left > 1) {
-	size_t nspace = right - left - 1;
+    while (riter - liter > 1) {
+	size_t nspace = riter - liter - 1;
 	size_t nl = ldx == 0 ? (rdx == 0 ? nspace / 2 : nspace) : 0;
 	size_t nr = rdx == 0 ? (nspace - nl) : 0;
 
 	nl = std::min(nl, BlockSize);
 	nr = std::min(nr, BlockSize);
 	
-	lbase = nl ? left + 1 : lbase;
-	rbase = nr ? right - 1 : rbase;
+	lbase = nl ? liter + 1 : lbase;
+	rbase = nr ? riter - 1 : rbase;
 
 	for (auto i = 0; i < nl; ++i) {
-	    left_offsets[ldx] = i;
-	    ldx += not compare(*++left, pivot);
+	    loffsets[ldx] = i;
+	    ldx += not compare(*++liter, pivot);
 	}
 
 	for (auto i = 0; i < nr; ++i) {
-	    right_offsets[rdx] = i;
-	    rdx += compare(*--right, pivot);
+	    roffsets[rdx] = i;
+	    rdx += compare(*--riter, pivot);
 	}
 
 	auto n = std::min(ldx, rdx);
@@ -189,23 +281,23 @@ auto partition(Iter begin, Iter end, Compare compare) {
 	ldx -= n;
 	rdx -= n;
 
-	lptroff = (ldx == 0 ? &left_offsets[0] : lptroff + n);
-	rptroff = (rdx == 0 ? &right_offsets[0] : rptroff + n);
+	lptroff = (ldx == 0 ? &loffsets[0] : lptroff + n);
+	rptroff = (rdx == 0 ? &roffsets[0] : rptroff + n);
     }
 
     if (ldx) {
 	while (ldx--)
-	    std::iter_swap(lbase + lptroff[ldx], --right);
-	left = right - 1;
+	    std::iter_swap(lbase + lptroff[ldx], --riter);
+	liter = riter - 1;
     }
 
     if (rdx) {
 	while (rdx--)
-	    std::iter_swap(rbase - rptroff[rdx], ++left);
-	right = left + 1;
+	    std::iter_swap(rbase - rptroff[rdx], ++liter);
+	riter = liter + 1;
     }
 
-    Iter piter = left;
+    Iter piter = liter;
     *begin = std::move(*piter);
     *piter = std::move(pivot);
 
@@ -223,7 +315,7 @@ void qsort(Iter begin, Iter end, Compare compare) {
 	}
 
 	move_pivot_to_begin(begin, end, compare);
-	auto piter = core::sort::partition(begin, end, compare);
+	auto piter = core::sort::partition0(begin, end, compare);
 
 	qsort(begin, piter, compare);
 	begin = piter + 1;
