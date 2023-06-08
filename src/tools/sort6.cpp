@@ -159,25 +159,16 @@ auto partition_alternate(Iter begin, Iter end, Compare compare) {
     Iter left = begin;
     Iter right = end;
 
-    // while (compare(*++left, pivot));
-    // while (left < right and not compare(*--right, pivot));
-    // if (left < right)
-    // 	swap(*left, *right);
-
     alignas(CacheLineSize) std::array<unsigned char, BlockSize> left_offsets;
     alignas(CacheLineSize) std::array<unsigned char, BlockSize> right_offsets;
+    unsigned char *lptroff = &left_offsets[0];
+    unsigned char *rptroff = &right_offsets[0];
     size_t ldx{}, rdx{};
-    size_t lstart{}, rstart{};
     Iter lbase = left, rbase = right;
-    while (right - left > 1) {
-	size_t nspace = right - left - 1;
-	size_t nl = ldx == 0 ? (rdx == 0 ? nspace / 2 : nspace) : 0;
-	size_t nr = rdx == 0 ? (nspace - nl) : 0;
+    while (right - left > 2 * BlockSize) {
 
-	lbase = nl ? left : lbase;
-	rbase = nr ? right : rbase;
-
-	if (nl >= BlockSize) {
+	if (ldx == 0) {
+	    lbase = left;
 	    for (auto i = 0; i < BlockSize;) {
 		left_offsets[ldx] = i++; ldx += not compare(*++left, pivot);
 		left_offsets[ldx] = i++; ldx += not compare(*++left, pivot);
@@ -187,15 +178,11 @@ auto partition_alternate(Iter begin, Iter end, Compare compare) {
 		left_offsets[ldx] = i++; ldx += not compare(*++left, pivot);
 		left_offsets[ldx] = i++; ldx += not compare(*++left, pivot);
 		left_offsets[ldx] = i++; ldx += not compare(*++left, pivot);
-	    }
-	} else {
-	    for (auto i = 0; i < nl; ++i) {
-		left_offsets[ldx] = i;
-		ldx += not compare(*++left, pivot);
 	    }
 	}
-
-	if (nr >= BlockSize) {
+	
+	if (rdx == 0) {
+	    rbase = right;
 	    for (auto i = 0; i < BlockSize;) {
 		right_offsets[rdx] = i++; rdx += compare(*--right, pivot);
 		right_offsets[rdx] = i++; rdx += compare(*--right, pivot);
@@ -205,29 +192,56 @@ auto partition_alternate(Iter begin, Iter end, Compare compare) {
 		right_offsets[rdx] = i++; rdx += compare(*--right, pivot);
 		right_offsets[rdx] = i++; rdx += compare(*--right, pivot);
 		right_offsets[rdx] = i++; rdx += compare(*--right, pivot);
-	    }
-	} else {
-	    for (auto i = 0; i < nr; ++i) {
-		right_offsets[rdx] = i;
-		rdx += compare(*--right, pivot);
 	    }
 	}
 
 	auto n = std::min(ldx, rdx);
 	for (auto i = 0; i < n; ++i)
-	    swap(lbase[left_offsets[lstart + i] + 1], rbase[-right_offsets[rstart + i] - 1]);
+	    swap(lbase[lptroff[i] + 1], rbase[-rptroff[i] - 1]);
 
 	ldx -= n;
 	rdx -= n;
 
-	lstart = (ldx == 0 ? 0 : lstart + n);
-	rstart = (rdx == 0 ? 0 : rstart + n);
+	lptroff = (ldx == 0 ? &left_offsets[0] : lptroff + n);
+	rptroff = (rdx == 0 ? &right_offsets[0] : rptroff + n);
+    }
+    
+    while (right - left > 1) {
+	size_t nspace = right - left - 1;
+	size_t nl = ldx == 0 ? (rdx == 0 ? nspace / 2 : nspace) : 0;
+	size_t nr = rdx == 0 ? (nspace - nl) : 0;
+
+	nl = std::min(nl, BlockSize);
+	nr = std::min(nr, BlockSize);
+	
+	lbase = nl ? left : lbase;
+	rbase = nr ? right : rbase;
+
+	for (auto i = 0; i < nl; ++i) {
+	    left_offsets[ldx] = i;
+	    ldx += not compare(*++left, pivot);
+	}
+
+	for (auto i = 0; i < nr; ++i) {
+	    right_offsets[rdx] = i;
+	    rdx += compare(*--right, pivot);
+	}
+
+	auto n = std::min(ldx, rdx);
+	for (auto i = 0; i < n; ++i)
+	    swap(lbase[lptroff[i] + 1], rbase[-rptroff[i] - 1]);
+
+	ldx -= n;
+	rdx -= n;
+
+	lptroff = (ldx == 0 ? &left_offsets[0] : lptroff + n);
+	rptroff = (rdx == 0 ? &right_offsets[0] : rptroff + n);
     }
 
     if (ldx)
-	left = lbase + left_offsets[lstart];
+	left = lbase + lptroff[0];
     if (rdx)
-	right = rbase - right_offsets[rstart];
+	right = rbase - rptroff[0];
 
     if (left < right) {
 	while (compare(*++left, pivot));
@@ -247,6 +261,7 @@ auto partition_alternate(Iter begin, Iter end, Compare compare) {
     return piter;
 }
 
+
 template<class Iter, class Compare>
 void qsort(Iter begin, Iter end, Compare compare) {
     while (true) {
@@ -260,10 +275,6 @@ void qsort(Iter begin, Iter end, Compare compare) {
 	move_pivot_to_begin(begin, end, compare);
 	auto piter = core::sort::partition_alternate(begin, end, compare);
 
-	// auto left_size = piter - begin;
-	// auto right_size = end - (piter + 1);
-	// bool highly_unbalanced = left_size < size / 8 or right_size < size / 8;
-	
 	qsort(begin, piter, compare);
 	begin = piter + 1;
     }
