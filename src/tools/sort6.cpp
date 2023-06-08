@@ -104,12 +104,17 @@ auto partition0(Iter begin, Iter end, Compare compare) {
 
     alignas(CacheLineSize) std::array<unsigned char, BlockSize> loffsets;
     alignas(CacheLineSize) std::array<unsigned char, BlockSize> roffsets;
-    size_t lcount{}, rcount{}, ldx{}, rdx{};
+    size_t lcount{}, rcount{}, lslot{}, rslot{};
     Iter lbase = liter + 1, rbase = riter - 1;
     while (riter - liter > 1) {
+	size_t loff = liter + 1 - lbase;
+	size_t roff = riter + 1 - rbase;
+	assert(loff <= 256);
+	assert(roff <= 256);
+	
 	size_t nspace = riter - liter - 1;
-	size_t nl = std::min(256 - ldx, BlockSize - lcount);
-	size_t nr = std::min(256 - rdx, BlockSize - rcount);
+	size_t nl = std::min(256 - loff, BlockSize - lcount);
+	size_t nr = std::min(256 - roff, BlockSize - rcount);
 
 	if (nl + nr > nspace) {
 	    auto& a = (nl < nr ? nl : nr);
@@ -117,50 +122,25 @@ auto partition0(Iter begin, Iter end, Compare compare) {
 	    a = std::min(a, nspace / 2);
 	    b = nspace - a;
 	}
+	assert(nl + nr <= nspace);
 
-	auto ldx0 = ldx;
-	if (nl >= BlockSize) {
-	    for (auto i = 0; i < BlockSize;) {
-		loffsets[ldx % BlockSize] = i++; ldx += not compare(*++liter, pivot);
-		loffsets[ldx % BlockSize] = i++; ldx += not compare(*++liter, pivot);
-		loffsets[ldx % BlockSize] = i++; ldx += not compare(*++liter, pivot);
-		loffsets[ldx % BlockSize] = i++; ldx += not compare(*++liter, pivot);
-		loffsets[ldx % BlockSize] = i++; ldx += not compare(*++liter, pivot);
-		loffsets[ldx % BlockSize] = i++; ldx += not compare(*++liter, pivot);
-		loffsets[ldx % BlockSize] = i++; ldx += not compare(*++liter, pivot);
-		loffsets[ldx % BlockSize] = i++; ldx += not compare(*++liter, pivot);
-	    }
-	} else {
-	    for (auto i = 0; i < nl; ++i) {
-		loffsets[ldx % BlockSize] = i;
-		ldx += not compare(*++liter, pivot);
-	    }
+	auto ldx0 = lslot;
+	for (auto i = 0; i < nl; ++i) {
+	    loffsets[lslot % BlockSize] = loff++;
+	    lslot += not compare(*++liter, pivot);
 	}
-	lcount += ldx - ldx0;
+	lcount += lslot - ldx0;
 
-	auto rdx0 = rdx;
-	if (nr >= BlockSize) {
-	    for (auto i = 0; i < BlockSize;) {
-		roffsets[rdx % BlockSize] = i++; rdx += compare(*--riter, pivot);
-		roffsets[rdx % BlockSize] = i++; rdx += compare(*--riter, pivot);
-		roffsets[rdx % BlockSize] = i++; rdx += compare(*--riter, pivot);
-		roffsets[rdx % BlockSize] = i++; rdx += compare(*--riter, pivot);
-		roffsets[rdx % BlockSize] = i++; rdx += compare(*--riter, pivot);
-		roffsets[rdx % BlockSize] = i++; rdx += compare(*--riter, pivot);
-		roffsets[rdx % BlockSize] = i++; rdx += compare(*--riter, pivot);
-		roffsets[rdx % BlockSize] = i++; rdx += compare(*--riter, pivot);
-	    }
-	} else {
-	    for (auto i = 0; i < nr; ++i) {
-		roffsets[rdx % BlockSize] = i;
-		rdx += compare(*--riter, pivot);
-	    }
+	auto rdx0 = rslot;
+	for (auto i = 0; i < nr; ++i) {
+	    roffsets[rslot % BlockSize] = roff++;
+	    rslot += compare(*--riter, pivot);
 	}
-	rcount += rdx - rdx0;
+	rcount += rslot - rdx0;
 
 	auto n = std::min(lcount, rcount);
-	auto l0 = (ldx + BlockSize - lcount) % BlockSize;
-	auto r0 = (rdx + BlockSize - rcount) % BlockSize;
+	auto l0 = (lslot + BlockSize - lcount) % BlockSize;
+	auto r0 = (rslot + BlockSize - rcount) % BlockSize;
 	for (auto i = 0; i < n; ++i) {
 	    auto lindex = (l0 + i) % BlockSize;
 	    auto rindex = (r0 + i) % BlockSize;
@@ -171,22 +151,26 @@ auto partition0(Iter begin, Iter end, Compare compare) {
 	rcount -= n;
 
 	if (lcount == 0) {
-	    ldx = 0;
+	    lslot = 0;
+	    lbase = liter + 1;
+	    loff = 0;
 	}
 	if (rcount == 0) {
-	    rdx = 0;
+	    rslot = 0;
+	    rbase = riter - 1;
+	    roff = 0;
 	}
     }
 
-    if (ldx) {
-	while (ldx--)
-	    std::iter_swap(lbase + lptroff[ldx], --riter);
+    if (lslot) {
+	while (lcount--)
+	    std::iter_swap(lbase + loffsets[(lslot + lcount) % BlockSize], --riter);
 	liter = riter - 1;
     }
 
-    if (rdx) {
-	while (rdx--)
-	    std::iter_swap(rbase - rptroff[rdx], ++liter);
+    if (rslot) {
+	while (rcount--)
+	    std::iter_swap(rbase - roffsets[(rslot + rcount) % BlockSize], ++liter);
 	riter = liter + 1;
     }
 
