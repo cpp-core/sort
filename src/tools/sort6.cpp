@@ -16,10 +16,10 @@ namespace core::sort {
 #define REPEAT8(code) REPEAT4(code); REPEAT4(code)
 
 inline namespace qsort_detail {
-       inline constexpr size_t InsertionSortThreshold = 24;
+       inline constexpr size_t InsertionSortThreshold = 32;
        inline constexpr size_t PseudoMedianThreshold = 128;
        inline constexpr size_t CacheLineSize = 64;
-       inline constexpr size_t BlockSize = 64;
+       inline constexpr size_t BlockSize = 128;
 };
 
 template<class Iter, class Compare>
