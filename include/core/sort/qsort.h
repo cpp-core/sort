@@ -4,6 +4,7 @@
 #pragma once
 #include <algorithm>
 #include <array>
+#include "insertion_sort.h"
 
 namespace core::sort {
 
@@ -43,27 +44,6 @@ void move_pivot_to_begin(Iter begin, Iter end, Compare compare) {
 	std::iter_swap(begin, begin + mdx);
     } else {
 	sort_elements(begin + mdx, begin, end - 1, compare);
-    }
-}
-
-template<class Iter, class Compare>
-void insertion_sort(Iter begin, Iter end, Compare compare) {
-    using T = typename Iter::value_type;
-
-    if (end - begin < 2)
-	return;
-
-    for (auto iter = begin + 1; iter < end; ++iter) {
-	auto a = iter, b = iter - 1;
-	if (compare(*a, *b)) {
-	    T tmp = std::move(*a);
-
-	    do {
-		*a-- = std::move(*b);
-	    } while (a != begin and compare(tmp, *--b));
-
-	    *a = std::move(tmp);
-	}
     }
 }
 

@@ -2,22 +2,29 @@
 //
 
 #pragma once
-#include <algorithm>
-#include <fmt/format.h>
-#include "frame.h"
-#include "key.h"
+#include <utility>
 
 namespace core::sort {
 
-void insertion_sort(Frame& frame, const Keys& keys, int ldx, int rdx) {
-    for (auto idx = ldx + 1; idx <= rdx; ++idx) {
-	for (auto jdx = idx; jdx > 0 and compare(frame.row(jdx), frame.row(jdx-1), keys); --jdx)
-	    frame.swap_rows(jdx, jdx - 1);
-    }
-}
+template<class Iter, class Compare>
+void insertion_sort(Iter begin, Iter end, Compare compare) {
+    using T = typename Iter::value_type;
 
-void insertion_sort(Frame& frame, const Keys& keys) {
-    insertion_sort(frame, keys, 0, frame.nrows() - 1);
+    if (end - begin < 2)
+	return;
+
+    for (auto iter = begin + 1; iter < end; ++iter) {
+	auto a = iter, b = iter - 1;
+	if (compare(*a, *b)) {
+	    T tmp = std::move(*a);
+
+	    do {
+		*a-- = std::move(*b);
+	    } while (a != begin and compare(tmp, *--b));
+
+	    *a = std::move(tmp);
+	}
+    }
 }
 
 }; // core::sort
