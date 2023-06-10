@@ -119,6 +119,7 @@ target_link_libraries(sort PUBLIC record::record timer::timer fmt::fmt)
 foreach(prog
     example0
     example1
+    measure_sequential
     sort0
     # sort1
     sort2
