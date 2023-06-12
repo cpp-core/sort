@@ -84,8 +84,6 @@ add_fmt()
 add_repo(cpp-core/argparse)
 add_repo(cpp-core/record)
 add_repo(cpp-core/timer)
-add_repo(cpp-core/tuple)
-add_repo(cpp-core/tuple)
 
 # Build the library
 #
